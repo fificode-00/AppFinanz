@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<title>Mis Finanzas</title>
+<meta name="theme-color" content="#0D0D1A" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Finanzas" />
+<link rel="manifest" href="manifest.json" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<link rel="icon" href="icon-192.png" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #0D0D1A; overscroll-behavior-y: none; }
+  body { -webkit-tap-highlight-color: transparent; }
+  input, select, textarea, button { font-family: inherit; }
+  ::-webkit-scrollbar { display: none; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect } = React;
+
+// ─── ALMACENAMIENTO LOCAL (todo se queda en este dispositivo) ───────────────
+const STORAGE_KEY = "finanzas-andres-v1";
+const API_KEY_STORAGE = "finanzas-andres-gemini-key";
+
+// Datos en blanco: vos cargás tus cifras reales la primera vez que abrís la
+// app, y quedan guardadas solo en este teléfono (nunca en el código fuente).
+const initialData = {
+  saldo: 0,
+  ingresoMensual: 0,
+  deudas: [],
+  gastosFijos: [],
+  gastos: [],
+  ingresos: [],
+  metas: [],
+  prestamos: [],
+  negocios: [],
+};
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return { ...initialData, ...parsed, ingresos: parsed.ingresos || [] };
+    }
+  } catch (e) {}
+  return initialData;
+}
+
+const CATEGORIAS = ["comida", "transporte", "ocio", "ropa", "salud", "imprevisto", "otro"];
+const CATEGORIA_COLORS = {
+  comida: "#F59E0B",
+  transporte: "#3B82F6",
+  ocio: "#8B5CF6",
+  ropa: "#EC4899",
+  salud: "#10B981",
+  imprevisto: "#EF4444",
+  otro: "#6B7280",
+  familia: "#F97316",
+  servicios: "#06B6D4",
+};
+
+function formatCOP(n) {
+  if (n === null || n === undefined) return "—";
+  return "$" + Math.round(n).toLocaleString("es-CO");
+}
+
+function diasRestantes(fecha) {
+  const hoy = new Date();
+  const f = new Date(fecha);
+  const diff = Math.ceil((f - hoy) / (1000 * 60 * 60 * 24));
+  return diff;
+}
+
+// ─── IA: convierte texto libre en un movimiento estructurado ────────────────
+async function parseConIA(texto, apiKey) {
+  const prompt = `Analiza este texto en español donde una persona describe un movimiento de dinero personal (gasto o ingreso): "${texto}"
+
+Responde con un objeto que tenga:
+- tipo: "gasto" o "ingreso"
+- monto: el valor numérico en pesos colombianos, sin puntos, comas ni símbolo de moneda (solo el número)
+- categoria: si es un gasto, la más adecuada entre: ${CATEGORIAS.join(", ")}. Si es un ingreso, usa "ingreso".
+- descripcion: una descripción corta (máximo 5 palabras)
+
+Si el texto no da un monto claro, usa 0 en monto.`;
+
+  const schema = {
+    type: "object",
+    properties: {
+      tipo: { type: "string", enum: ["gasto", "ingreso"] },
+      monto: { type: "number" },
+      categoria: { type: "string", enum: [...CATEGORIAS, "ingreso"] },
+      descripcion: { type: "string" },
+    },
+    required: ["tipo", "monto", "categoria", "descripcion"],
+  };
+
+  const resp = await fetch(
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: "application/json", responseSchema: schema },
+      }),
+    }
+  );
+
+  if (!resp.ok) {
+    const errText = await resp.text().catch(() => "");
+    throw new Error("HTTP " + resp.status + (errText ? ": " + errText.slice(0, 150) : ""));
+  }
+
+  const data = await resp.json();
+  const textOut =
+    data &&
+    data.candidates &&
+    data.candidates[0] &&
+    data.candidates[0].content &&
+    data.candidates[0].content.parts &&
+    data.candidates[0].content.parts[0] &&
+    data.candidates[0].content.parts[0].text;
+  if (!textOut) throw new Error("Respuesta vacía de la IA");
+  return JSON.parse(textOut);
+}
+
+// ─── COMPONENTES BASE ────────────────────────────────────────────────────────
+function Badge({ children, color = "#6C63FF" }) {
+  return (
+    <span style={{
+      background: color + "22", color, borderRadius: 6, padding: "2px 10px",
+      fontSize: 12, fontWeight: 600, letterSpacing: 0.3,
+    }}>{children}</span>
+  );
+}
+
+function Card({ children, style = {} }) {
+  return (
+    <div style={{
+      background: "#1A1A2E", borderRadius: 16, padding: "20px 20px", marginBottom: 14,
+      border: "1px solid #2A2A4A", ...style,
+    }}>{children}</div>
+  );
+}
+
+function ProgressBar({ value, max, color = "#6C63FF" }) {
+  const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
+  return (
+    <div style={{ background: "#2A2A4A", borderRadius: 8, height: 8, overflow: "hidden", margin: "8px 0" }}>
+      <div style={{
+        width: pct + "%", height: "100%",
+        background: `linear-gradient(90deg, ${color}, ${color}99)`,
+        borderRadius: 8, transition: "width 0.5s ease",
+      }} />
+    </div>
+  );
+}
+
+function TabBar({ tabs, active, onChange }) {
+  return (
+    <div style={{
+      display: "flex", background: "#12122A", borderRadius: 12, padding: 4,
+      marginBottom: 18, gap: 2, overflowX: "auto",
+    }}>
+      {tabs.map(t => (
+        <button key={t.id} onClick={() => onChange(t.id)} style={{
+          flex: 1, minWidth: 60, padding: "8px 6px", borderRadius: 9, border: "none",
+          background: active === t.id ? "#6C63FF" : "transparent",
+          color: active === t.id ? "#fff" : "#8888AA",
+          fontWeight: active === t.id ? 700 : 500, fontSize: 11, cursor: "pointer",
+          transition: "all 0.2s", display: "flex", flexDirection: "column",
+          alignItems: "center", gap: 2,
+        }}>
+          <span style={{ fontSize: 16 }}>{t.icon}</span>
+          <span>{t.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Modal({ open, onClose, title, children }) {
+  if (!open) return null;
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "#000000BB",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      zIndex: 100, padding: 16,
+    }} onClick={onClose}>
+      <div style={{
+        background: "#1A1A2E", borderRadius: 18, padding: 24,
+        width: "100%", maxWidth: 380, border: "1px solid #2A2A4A",
+        maxHeight: "85vh", overflowY: "auto",
+      }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+          <span style={{ color: "#fff", fontWeight: 700, fontSize: 16 }}>{title}</span>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#8888AA", fontSize: 20, cursor: "pointer" }}>×</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Input({ label, ...props }) {
+  return (
+    <div style={{ marginBottom: 12 }}>
+      {label && <label style={{ color: "#8888AA", fontSize: 12, display: "block", marginBottom: 4 }}>{label}</label>}
+      <input {...props} style={{
+        width: "100%", background: "#12122A", border: "1px solid #2A2A4A",
+        borderRadius: 10, padding: "10px 12px", color: "#fff", fontSize: 14,
+        outline: "none", boxSizing: "border-box", ...props.style,
+      }} />
+    </div>
+  );
+}
+
+function Select({ label, children, ...props }) {
+  return (
+    <div style={{ marginBottom: 12 }}>
+      {label && <label style={{ color: "#8888AA", fontSize: 12, display: "block", marginBottom: 4 }}>{label}</label>}
+      <select {...props} style={{
+        width: "100%", background: "#12122A", border: "1px solid #2A2A4A",
+        borderRadius: 10, padding: "10px 12px", color: "#fff", fontSize: 14,
+        outline: "none", boxSizing: "border-box",
+      }}>{children}</select>
+    </div>
+  );
+}
+
+function Btn({ children, onClick, variant = "primary", style = {} }) {
+  const base = {
+    padding: "11px 18px", borderRadius: 10, border: "none",
+    fontWeight: 700, fontSize: 14, cursor: "pointer", transition: "opacity 0.15s",
+  };
+  const variants = {
+    primary: { background: "#6C63FF", color: "#fff" },
+    danger: { background: "#EF444422", color: "#EF4444" },
+    ghost: { background: "#2A2A4A", color: "#BBBBDD" },
+    success: { background: "#10B98122", color: "#10B981" },
+  };
+  return <button onClick={onClick} style={{ ...base, ...variants[variant], ...style }}>{children}</button>;
+}
+
+// ─── DASHBOARD ───────────────────────────────────────────────────────────────
+function Dashboard({ data, setData }) {
+  const totalDeudas = data.deudas.reduce((a, d) => a + d.saldo, 0);
+  const gastosFijosTotal = data.gastosFijos.reduce((a, g) => a + g.monto, 0);
+  const proximoPago = data.deudas
+    .filter(d => d.saldo > 0)
+    .sort((a, b) => new Date(a.fechaPago) - new Date(b.fechaPago))[0];
+
+  return (
+    <div>
+      <Card style={{ background: "linear-gradient(135deg, #1A1A2E, #2A1A4E)", borderColor: "#6C63FF44" }}>
+        <div style={{ color: "#9999CC", fontSize: 12, marginBottom: 4 }}>SALDO DISPONIBLE</div>
+        <div style={{ color: "#fff", fontSize: 34, fontWeight: 800, letterSpacing: -1 }}>
+          {formatCOP(data.saldo)}
+        </div>
+        <div style={{ color: "#8888AA", fontSize: 12, marginTop: 6 }}>
+          Ingreso mensual: {formatCOP(data.ingresoMensual)}
+        </div>
+      </Card>
+
+      {proximoPago && (
+        <Card style={{ borderColor: diasRestantes(proximoPago.fechaPago) <= 10 ? "#EF444444" : "#F59E0B44" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <div style={{ color: "#8888AA", fontSize: 11, marginBottom: 2 }}>⚠️ PRÓXIMO PAGO</div>
+              <div style={{ color: "#fff", fontWeight: 700 }}>{proximoPago.nombre}</div>
+              <div style={{ color: "#9999CC", fontSize: 13 }}>{formatCOP(proximoPago.saldo)}</div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <Badge color={diasRestantes(proximoPago.fechaPago) <= 10 ? "#EF4444" : "#F59E0B"}>
+                {diasRestantes(proximoPago.fechaPago)}d
+              </Badge>
+              <div style={{ color: "#8888AA", fontSize: 11, marginTop: 4 }}>
+                {new Date(proximoPago.fechaPago).toLocaleDateString("es-CO", { day: "numeric", month: "short" })}
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+        <Card style={{ margin: 0 }}>
+          <div style={{ color: "#8888AA", fontSize: 11 }}>DEUDA TOTAL</div>
+          <div style={{ color: "#EF4444", fontWeight: 700, fontSize: 18, marginTop: 4 }}>{formatCOP(totalDeudas)}</div>
+        </Card>
+        <Card style={{ margin: 0 }}>
+          <div style={{ color: "#8888AA", fontSize: 11 }}>GASTOS FIJOS</div>
+          <div style={{ color: "#F59E0B", fontWeight: 700, fontSize: 18, marginTop: 4 }}>{formatCOP(gastosFijosTotal)}</div>
+        </Card>
+      </div>
+
+      {data.metas.map(m => (
+        <Card key={m.id}>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <div style={{ color: "#fff", fontWeight: 600 }}>🎯 {m.nombre}</div>
+            <div style={{ color: "#9999CC", fontSize: 13 }}>{m.objetivo > 0 ? Math.round((m.actual / m.objetivo) * 100) : 0}%</div>
+          </div>
+          <ProgressBar value={m.actual} max={m.objetivo} color={m.color} />
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#8888AA" }}>
+            <span>{formatCOP(m.actual)}</span>
+            <span>Meta: {formatCOP(m.objetivo)}</span>
+          </div>
+        </Card>
+      ))}
+
+      {data.ingresos && data.ingresos.length > 0 && (
+        <Card>
+          <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 10 }}>INGRESOS RECIENTES</div>
+          {data.ingresos.slice(0, 5).map(i => (
+            <div key={i.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0" }}>
+              <div>
+                <div style={{ color: "#fff", fontSize: 13 }}>{i.descripcion}</div>
+                <div style={{ color: "#8888AA", fontSize: 11 }}>{i.fecha}</div>
+              </div>
+              <div style={{ color: "#10B981", fontWeight: 700 }}>+{formatCOP(i.monto)}</div>
+            </div>
+          ))}
+        </Card>
+      )}
+
+      <ActualizarSaldo data={data} setData={setData} />
+    </div>
+  );
+}
+
+function ActualizarSaldo({ data, setData }) {
+  const [open, setOpen] = useState(false);
+  const [val, setVal] = useState("");
+  return (
+    <>
+      <Btn onClick={() => setOpen(true)} style={{ width: "100%" }}>+ Actualizar saldo</Btn>
+      <Modal open={open} onClose={() => setOpen(false)} title="Actualizar saldo">
+        <Input label="Saldo actual (COP)" type="number" value={val} onChange={e => setVal(e.target.value)} placeholder="Ej: 500000" />
+        <Btn onClick={() => {
+          if (!val) return;
+          setData(d => ({ ...d, saldo: parseFloat(val) }));
+          setOpen(false); setVal("");
+        }} style={{ width: "100%" }}>Guardar</Btn>
+      </Modal>
+    </>
+  );
+}
+
+// ─── DEUDAS ──────────────────────────────────────────────────────────────────
+function Deudas({ data, setData }) {
+  const [modal, setModal] = useState(null);
+  const [form, setForm] = useState({});
+
+  function abonar(id) {
+    const monto = parseFloat(form.monto || 0);
+    if (!monto) return;
+    setData(d => ({
+      ...d,
+      saldo: d.saldo - monto,
+      deudas: d.deudas.map(deu => deu.id === id
+        ? { ...deu, saldo: Math.max(0, deu.saldo - monto), abonos: [...deu.abonos, { monto, fecha: new Date().toISOString().split("T")[0] }] }
+        : deu
+      ),
+    }));
+    setModal(null); setForm({});
+  }
+
+  function agregarDeuda() {
+    const nueva = {
+      id: Date.now(),
+      nombre: form.nombre || "Nueva deuda",
+      saldo: parseFloat(form.saldo || 0),
+      fechaPago: form.fechaPago || "",
+      interesMensual: parseFloat(form.interes || 0),
+      comisiones: parseFloat(form.comisiones || 0),
+      abonos: [],
+    };
+    setData(d => ({ ...d, deudas: [...d.deudas, nueva] }));
+    setModal(null); setForm({});
+  }
+
+  return (
+    <div>
+      {data.deudas.map(d => (
+        <Card key={d.id}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+            <div>
+              <div style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>{d.nombre}</div>
+              <div style={{ color: "#EF4444", fontSize: 22, fontWeight: 800, marginTop: 2 }}>{formatCOP(d.saldo)}</div>
+            </div>
+            {d.fechaPago && (
+              <Badge color={diasRestantes(d.fechaPago) <= 10 ? "#EF4444" : "#F59E0B"}>
+                {diasRestantes(d.fechaPago)}d
+              </Badge>
+            )}
+          </div>
+          {d.fechaPago && (
+            <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 8 }}>
+              Vence: {new Date(d.fechaPago).toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" })}
+            </div>
+          )}
+          {(d.interesMensual > 0 || d.comisiones > 0) && (
+            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+              {d.interesMensual > 0 && <Badge color="#EF4444">Interés {formatCOP(d.interesMensual)}/mes</Badge>}
+              {d.comisiones > 0 && <Badge color="#F59E0B">Comisiones {formatCOP(d.comisiones)}/mes</Badge>}
+            </div>
+          )}
+          {d.abonos.length > 0 && (
+            <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 8 }}>
+              {d.abonos.length} abono(s) registrado(s)
+            </div>
+          )}
+          <Btn onClick={() => { setModal("abonar-" + d.id); setForm({}); }} style={{ width: "100%" }}>
+            Registrar abono
+          </Btn>
+          <Modal open={modal === "abonar-" + d.id} onClose={() => setModal(null)} title={`Abonar a ${d.nombre}`}>
+            <div style={{ color: "#8888AA", fontSize: 13, marginBottom: 12 }}>Saldo actual: {formatCOP(d.saldo)}</div>
+            <Input label="Monto del abono" type="number" value={form.monto || ""} onChange={e => setForm(f => ({ ...f, monto: e.target.value }))} placeholder="Ej: 350000" />
+            <div style={{ display: "flex", gap: 8 }}>
+              <Btn onClick={() => abonar(d.id)} style={{ flex: 1 }}>Abonar</Btn>
+              <Btn variant="ghost" onClick={() => setModal(null)} style={{ flex: 1 }}>Cancelar</Btn>
+            </div>
+          </Modal>
+        </Card>
+      ))}
+
+      <Btn onClick={() => { setModal("nueva"); setForm({}); }} variant="ghost" style={{ width: "100%" }}>
+        + Agregar deuda
+      </Btn>
+      <Modal open={modal === "nueva"} onClose={() => setModal(null)} title="Nueva deuda">
+        <Input label="Nombre" value={form.nombre || ""} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} placeholder="Ej: Banco XYZ" />
+        <Input label="Saldo (COP)" type="number" value={form.saldo || ""} onChange={e => setForm(f => ({ ...f, saldo: e.target.value }))} />
+        <Input label="Fecha límite de pago" type="date" value={form.fechaPago || ""} onChange={e => setForm(f => ({ ...f, fechaPago: e.target.value }))} />
+        <Input label="Interés mensual (COP)" type="number" value={form.interes || ""} onChange={e => setForm(f => ({ ...f, interes: e.target.value }))} />
+        <Input label="Comisiones mensuales (COP)" type="number" value={form.comisiones || ""} onChange={e => setForm(f => ({ ...f, comisiones: e.target.value }))} />
+        <div style={{ display: "flex", gap: 8 }}>
+          <Btn onClick={agregarDeuda} style={{ flex: 1 }}>Guardar</Btn>
+          <Btn variant="ghost" onClick={() => setModal(null)} style={{ flex: 1 }}>Cancelar</Btn>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+// ─── GASTOS ──────────────────────────────────────────────────────────────────
+function Gastos({ data, setData }) {
+  const [modal, setModal] = useState(false);
+  const [form, setForm] = useState({});
+  const mesActual = new Date().toISOString().slice(0, 7);
+  const gastosMes = data.gastos.filter(g => g.fecha && g.fecha.startsWith(mesActual));
+  const totalMes = gastosMes.reduce((a, g) => a + g.monto, 0);
+
+  const porCategoria = CATEGORIAS.map(cat => ({
+    cat,
+    total: gastosMes.filter(g => g.categoria === cat).reduce((a, g) => a + g.monto, 0),
+  })).filter(c => c.total > 0);
+
+  function agregar() {
+    const nuevo = {
+      id: Date.now(),
+      descripcion: form.descripcion || "Gasto",
+      monto: parseFloat(form.monto || 0),
+      categoria: form.categoria || "otro",
+      fecha: new Date().toISOString().split("T")[0],
+    };
+    setData(d => ({ ...d, saldo: d.saldo - nuevo.monto, gastos: [nuevo, ...d.gastos] }));
+    setModal(false); setForm({});
+  }
+
+  function eliminar(id) {
+    const g = data.gastos.find(g => g.id === id);
+    if (!g) return;
+    setData(d => ({ ...d, saldo: d.saldo + g.monto, gastos: d.gastos.filter(x => x.id !== id) }));
+  }
+
+  return (
+    <div>
+      <Card style={{ background: "linear-gradient(135deg, #1A1A2E, #2E1A1A)", borderColor: "#F59E0B44" }}>
+        <div style={{ color: "#8888AA", fontSize: 12 }}>GASTADO ESTE MES</div>
+        <div style={{ color: "#F59E0B", fontSize: 28, fontWeight: 800 }}>{formatCOP(totalMes)}</div>
+        <div style={{ color: "#8888AA", fontSize: 12, marginTop: 4 }}>{gastosMes.length} movimiento(s)</div>
+      </Card>
+
+      {porCategoria.length > 0 && (
+        <Card>
+          <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 10 }}>POR CATEGORÍA</div>
+          {porCategoria.map(c => (
+            <div key={c.cat} style={{ marginBottom: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                <span style={{ color: "#BBBBDD", fontSize: 13, textTransform: "capitalize" }}>{c.cat}</span>
+                <span style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>{formatCOP(c.total)}</span>
+              </div>
+              <ProgressBar value={c.total} max={totalMes} color={CATEGORIA_COLORS[c.cat] || "#6C63FF"} />
+            </div>
+          ))}
+        </Card>
+      )}
+
+      <Btn onClick={() => setModal(true)} style={{ width: "100%", marginBottom: 14 }}>+ Registrar gasto</Btn>
+
+      {gastosMes.length === 0 && (
+        <div style={{ textAlign: "center", color: "#8888AA", padding: 30 }}>Sin gastos este mes</div>
+      )}
+
+      {gastosMes.map(g => (
+        <Card key={g.id} style={{ padding: "14px 16px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <div style={{ color: "#fff", fontWeight: 600, fontSize: 14 }}>{g.descripcion}</div>
+              <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                <Badge color={CATEGORIA_COLORS[g.categoria] || "#6C63FF"}>{g.categoria}</Badge>
+                <span style={{ color: "#8888AA", fontSize: 12 }}>{g.fecha}</span>
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ color: "#EF4444", fontWeight: 700 }}>{formatCOP(g.monto)}</span>
+              <button onClick={() => eliminar(g.id)} style={{ background: "none", border: "none", color: "#8888AA", cursor: "pointer", fontSize: 16 }}>🗑</button>
+            </div>
+          </div>
+        </Card>
+      ))}
+
+      <Modal open={modal} onClose={() => setModal(false)} title="Nuevo gasto">
+        <Input label="Descripción" value={form.descripcion || ""} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))} placeholder="Ej: Almuerzo" />
+        <Input label="Monto (COP)" type="number" value={form.monto || ""} onChange={e => setForm(f => ({ ...f, monto: e.target.value }))} />
+        <Select label="Categoría" value={form.categoria || "otro"} onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))}>
+          {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+        </Select>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Btn onClick={agregar} style={{ flex: 1 }}>Agregar</Btn>
+          <Btn variant="ghost" onClick={() => setModal(false)} style={{ flex: 1 }}>Cancelar</Btn>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+// ─── METAS ───────────────────────────────────────────────────────────────────
+function Metas({ data, setData }) {
+  const [modal, setModal] = useState(null);
+  const [form, setForm] = useState({});
+
+  function abonarMeta(id) {
+    const monto = parseFloat(form.monto || 0);
+    if (!monto) return;
+    setData(d => ({
+      ...d,
+      saldo: d.saldo - monto,
+      metas: d.metas.map(m => m.id === id ? { ...m, actual: Math.min(m.objetivo, m.actual + monto) } : m),
+    }));
+    setModal(null); setForm({});
+  }
+
+  function agregarMeta() {
+    const nueva = {
+      id: Date.now(),
+      nombre: form.nombre || "Nueva meta",
+      objetivo: parseFloat(form.objetivo || 0),
+      actual: 0,
+      color: form.color || "#6C63FF",
+    };
+    setData(d => ({ ...d, metas: [...d.metas, nueva] }));
+    setModal(null); setForm({});
+  }
+
+  return (
+    <div>
+      {data.metas.map(m => {
+        const pct = m.objetivo > 0 ? Math.min(100, Math.round((m.actual / m.objetivo) * 100)) : 0;
+        const faltante = m.objetivo - m.actual;
+        const mesesEstimados = faltante > 0 ? Math.ceil(faltante / 500000) : 0;
+        return (
+          <Card key={m.id}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <div style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>🎯 {m.nombre}</div>
+              <Badge color={m.color}>{pct}%</Badge>
+            </div>
+            <ProgressBar value={m.actual} max={m.objetivo} color={m.color} />
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 10 }}>
+              <span style={{ color: "#10B981" }}>{formatCOP(m.actual)} ahorrado</span>
+              <span style={{ color: "#8888AA" }}>Meta: {formatCOP(m.objetivo)}</span>
+            </div>
+            {faltante > 0 && (
+              <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 12 }}>
+                Faltan {formatCOP(faltante)} · ~{mesesEstimados} mes(es) ahorrando $500k/mes
+              </div>
+            )}
+            <Btn onClick={() => { setModal("abonar-" + m.id); setForm({}); }} style={{ width: "100%" }}>
+              + Agregar ahorro
+            </Btn>
+            <Modal open={modal === "abonar-" + m.id} onClose={() => setModal(null)} title={`Ahorrar para ${m.nombre}`}>
+              <Input label="Monto (COP)" type="number" value={form.monto || ""} onChange={e => setForm(f => ({ ...f, monto: e.target.value }))} />
+              <div style={{ display: "flex", gap: 8 }}>
+                <Btn onClick={() => abonarMeta(m.id)} style={{ flex: 1 }}>Guardar</Btn>
+                <Btn variant="ghost" onClick={() => setModal(null)} style={{ flex: 1 }}>Cancelar</Btn>
+              </div>
+            </Modal>
+          </Card>
+        );
+      })}
+
+      <Btn variant="ghost" onClick={() => { setModal("nueva"); setForm({}); }} style={{ width: "100%" }}>
+        + Nueva meta
+      </Btn>
+      <Modal open={modal === "nueva"} onClose={() => setModal(null)} title="Nueva meta de ahorro">
+        <Input label="Nombre" value={form.nombre || ""} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} placeholder="Ej: Fondo de emergencia" />
+        <Input label="Objetivo (COP)" type="number" value={form.objetivo || ""} onChange={e => setForm(f => ({ ...f, objetivo: e.target.value }))} />
+        <div style={{ display: "flex", gap: 8 }}>
+          <Btn onClick={agregarMeta} style={{ flex: 1 }}>Crear</Btn>
+          <Btn variant="ghost" onClick={() => setModal(null)} style={{ flex: 1 }}>Cancelar</Btn>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+// ─── NEGOCIOS ────────────────────────────────────────────────────────────────
+function Negocios({ data, setData }) {
+  const [modal, setModal] = useState(null);
+  const [form, setForm] = useState({});
+
+  function cerrarNegocio(id) {
+    const precio = parseFloat(form.precio || 0);
+    if (!precio) return;
+    setData(d => ({
+      ...d,
+      saldo: d.saldo + precio,
+      negocios: d.negocios.map(n => n.id === id
+        ? { ...n, precioVenta: precio, ganancia: precio - n.costoTotal, estado: "vendido" }
+        : n
+      ),
+    }));
+    setModal(null); setForm({});
+  }
+
+  function agregarNegocio() {
+    const nuevo = {
+      id: Date.now(),
+      nombre: form.nombre || "Nuevo producto",
+      costoTotal: parseFloat(form.costo || 0),
+      precioVenta: null,
+      ganancia: null,
+      estado: "en curso",
+      nota: form.nota || "",
+    };
+    setData(d => ({ ...d, saldo: d.saldo - nuevo.costoTotal, negocios: [...d.negocios, nuevo] }));
+    setModal(null); setForm({});
+  }
+
+  const enCurso = data.negocios.filter(n => n.estado === "en curso");
+  const vendidos = data.negocios.filter(n => n.estado === "vendido");
+  const gananciasTotal = vendidos.reduce((a, n) => a + (n.ganancia || 0), 0);
+
+  return (
+    <div>
+      <Card style={{ borderColor: "#10B98144" }}>
+        <div style={{ color: "#8888AA", fontSize: 12 }}>GANANCIAS TOTALES</div>
+        <div style={{ color: "#10B981", fontSize: 26, fontWeight: 800 }}>{formatCOP(gananciasTotal)}</div>
+        <div style={{ color: "#8888AA", fontSize: 12 }}>{vendidos.length} operación(es) cerrada(s)</div>
+      </Card>
+
+      {enCurso.length > 0 && (
+        <>
+          <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 8, fontWeight: 600 }}>EN CURSO</div>
+          {enCurso.map(n => (
+            <Card key={n.id} style={{ borderColor: "#F59E0B44" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                <div style={{ color: "#fff", fontWeight: 700 }}>{n.nombre}</div>
+                <Badge color="#F59E0B">En curso</Badge>
+              </div>
+              <div style={{ color: "#8888AA", fontSize: 13 }}>Invertido: {formatCOP(n.costoTotal)}</div>
+              {n.nota && <div style={{ color: "#8888AA", fontSize: 12, marginTop: 4 }}>📝 {n.nota}</div>}
+              <Btn onClick={() => { setModal("vender-" + n.id); setForm({}); }} style={{ width: "100%", marginTop: 10 }}>
+                Registrar venta
+              </Btn>
+              <Modal open={modal === "vender-" + n.id} onClose={() => setModal(null)} title={`Vender ${n.nombre}`}>
+                <div style={{ color: "#8888AA", fontSize: 13, marginBottom: 12 }}>Costo total: {formatCOP(n.costoTotal)}</div>
+                <Input label="Precio de venta (COP)" type="number" value={form.precio || ""} onChange={e => setForm(f => ({ ...f, precio: e.target.value }))} />
+                {form.precio && (
+                  <div style={{ color: parseFloat(form.precio) > n.costoTotal ? "#10B981" : "#EF4444", fontSize: 14, marginBottom: 12, fontWeight: 600 }}>
+                    Ganancia: {formatCOP(parseFloat(form.precio || 0) - n.costoTotal)}
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <Btn onClick={() => cerrarNegocio(n.id)} style={{ flex: 1 }}>Confirmar venta</Btn>
+                  <Btn variant="ghost" onClick={() => setModal(null)} style={{ flex: 1 }}>Cancelar</Btn>
+                </div>
+              </Modal>
+            </Card>
+          ))}
+        </>
+      )}
+
+      {vendidos.length > 0 && (
+        <>
+          <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 8, fontWeight: 600, marginTop: 4 }}>VENDIDOS</div>
+          {vendidos.map(n => (
+            <Card key={n.id} style={{ opacity: 0.8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <div>
+                  <div style={{ color: "#BBBBDD", fontWeight: 600 }}>{n.nombre}</div>
+                  <div style={{ color: "#8888AA", fontSize: 12 }}>
+                    Compra {formatCOP(n.costoTotal)} → Venta {formatCOP(n.precioVenta)}
+                  </div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <Badge color="#10B981">Vendido</Badge>
+                  <div style={{ color: "#10B981", fontWeight: 700, marginTop: 4 }}>+{formatCOP(n.ganancia)}</div>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </>
+      )}
+
+      <Btn variant="ghost" onClick={() => { setModal("nuevo"); setForm({}); }} style={{ width: "100%", marginTop: 4 }}>
+        + Nuevo negocio
+      </Btn>
+      <Modal open={modal === "nuevo"} onClose={() => setModal(null)} title="Nuevo negocio">
+        <Input label="Nombre del producto" value={form.nombre || ""} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} />
+        <Input label="Costo total invertido (COP)" type="number" value={form.costo || ""} onChange={e => setForm(f => ({ ...f, costo: e.target.value }))} />
+        <Input label="Nota (opcional)" value={form.nota || ""} onChange={e => setForm(f => ({ ...f, nota: e.target.value }))} placeholder="Ej: Batería dañada" />
+        <div style={{ display: "flex", gap: 8 }}>
+          <Btn onClick={agregarNegocio} style={{ flex: 1 }}>Agregar</Btn>
+          <Btn variant="ghost" onClick={() => setModal(null)} style={{ flex: 1 }}>Cancelar</Btn>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+// ─── PRÉSTAMOS ───────────────────────────────────────────────────────────────
+function Prestamos({ data, setData }) {
+  const [modal, setModal] = useState(null);
+  const [form, setForm] = useState({});
+
+  function marcarPagado(id) {
+    const p = data.prestamos.find(p => p.id === id);
+    if (!p) return;
+    setData(d => ({
+      ...d,
+      saldo: p.tipo === "me deben" ? d.saldo + p.monto : d.saldo - p.monto,
+      prestamos: d.prestamos.filter(x => x.id !== id),
+    }));
+  }
+
+  function agregar() {
+    const nuevo = {
+      id: Date.now(),
+      tipo: form.tipo || "me deben",
+      persona: form.persona || "",
+      monto: parseFloat(form.monto || 0),
+      nota: form.nota || "",
+    };
+    setData(d => ({ ...d, prestamos: [...d.prestamos, nuevo] }));
+    setModal(null); setForm({});
+  }
+
+  const meDeben = data.prestamos.filter(p => p.tipo === "me deben");
+  const debo = data.prestamos.filter(p => p.tipo === "debo");
+
+  return (
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+        <Card style={{ margin: 0, borderColor: "#10B98144" }}>
+          <div style={{ color: "#8888AA", fontSize: 11 }}>ME DEBEN</div>
+          <div style={{ color: "#10B981", fontWeight: 700, fontSize: 18 }}>
+            {formatCOP(meDeben.reduce((a, p) => a + p.monto, 0))}
+          </div>
+        </Card>
+        <Card style={{ margin: 0, borderColor: "#EF444444" }}>
+          <div style={{ color: "#8888AA", fontSize: 11 }}>DEBO</div>
+          <div style={{ color: "#EF4444", fontWeight: 700, fontSize: 18 }}>
+            {formatCOP(debo.reduce((a, p) => a + p.monto, 0))}
+          </div>
+        </Card>
+      </div>
+
+      {meDeben.length > 0 && (
+        <>
+          <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 8, fontWeight: 600 }}>ME DEBEN</div>
+          {meDeben.map(p => (
+            <Card key={p.id}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ color: "#fff", fontWeight: 600 }}>{p.persona}</div>
+                  <div style={{ color: "#10B981", fontWeight: 700, fontSize: 18 }}>{formatCOP(p.monto)}</div>
+                  {p.nota && <div style={{ color: "#8888AA", fontSize: 12 }}>{p.nota}</div>}
+                </div>
+                <Btn variant="success" onClick={() => marcarPagado(p.id)}>Me pagó</Btn>
+              </div>
+            </Card>
+          ))}
+        </>
+      )}
+
+      {debo.length > 0 && (
+        <>
+          <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 8, fontWeight: 600, marginTop: 4 }}>DEBO</div>
+          {debo.map(p => (
+            <Card key={p.id}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ color: "#fff", fontWeight: 600 }}>{p.persona}</div>
+                  <div style={{ color: "#EF4444", fontWeight: 700, fontSize: 18 }}>{formatCOP(p.monto)}</div>
+                  {p.nota && <div style={{ color: "#8888AA", fontSize: 12 }}>{p.nota}</div>}
+                </div>
+                <Btn variant="danger" onClick={() => marcarPagado(p.id)}>Pagué</Btn>
+              </div>
+            </Card>
+          ))}
+        </>
+      )}
+
+      <Btn variant="ghost" onClick={() => { setModal("nuevo"); setForm({ tipo: "me deben" }); }} style={{ width: "100%", marginTop: 4 }}>
+        + Registrar préstamo
+      </Btn>
+      <Modal open={modal === "nuevo"} onClose={() => setModal(null)} title="Nuevo préstamo">
+        <Select label="Tipo" value={form.tipo || "me deben"} onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}>
+          <option value="me deben">Me deben</option>
+          <option value="debo">Debo</option>
+        </Select>
+        <Input label="Persona" value={form.persona || ""} onChange={e => setForm(f => ({ ...f, persona: e.target.value }))} placeholder="Ej: Hermano 1" />
+        <Input label="Monto (COP)" type="number" value={form.monto || ""} onChange={e => setForm(f => ({ ...f, monto: e.target.value }))} />
+        <Input label="Nota (opcional)" value={form.nota || ""} onChange={e => setForm(f => ({ ...f, nota: e.target.value }))} />
+        <div style={{ display: "flex", gap: 8 }}>
+          <Btn onClick={agregar} style={{ flex: 1 }}>Guardar</Btn>
+          <Btn variant="ghost" onClick={() => setModal(null)} style={{ flex: 1 }}>Cancelar</Btn>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+// ─── AJUSTES (API key de Gemini, se guarda solo en este teléfono) ───────────
+function Ajustes({ open, onClose }) {
+  const [key, setKey] = useState("");
+  const [guardado, setGuardado] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setKey(localStorage.getItem(API_KEY_STORAGE) || "");
+      setGuardado(false);
+    }
+  }, [open]);
+
+  function guardar() {
+    if (key.trim()) localStorage.setItem(API_KEY_STORAGE, key.trim());
+    else localStorage.removeItem(API_KEY_STORAGE);
+    setGuardado(true);
+    setTimeout(() => setGuardado(false), 1500);
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="Ajustes">
+      <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 8, fontWeight: 700 }}>
+        API KEY DE GOOGLE GEMINI (GRATIS)
+      </div>
+      <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 12, lineHeight: 1.5 }}>
+        Se usa solo para el registro rápido por IA. Se guarda únicamente en este teléfono, nunca en internet.
+        Conseguila gratis en aistudio.google.com/apikey
+      </div>
+      <Input label="API key" type="password" value={key} onChange={e => setKey(e.target.value)} placeholder="AIza..." />
+      <Btn onClick={guardar} style={{ width: "100%" }}>{guardado ? "Guardada ✓" : "Guardar"}</Btn>
+    </Modal>
+  );
+}
+
+// ─── REGISTRO RÁPIDO CON IA (texto o dictado por voz) ────────────────────────
+function RegistroRapido({ setData, onNeedApiKey }) {
+  const [open, setOpen] = useState(false);
+  const [texto, setTexto] = useState("");
+  const [estado, setEstado] = useState("idle");
+  const [errorMsg, setErrorMsg] = useState("");
+  const [ultimo, setUltimo] = useState(null);
+
+  async function registrar() {
+    const apiKey = localStorage.getItem(API_KEY_STORAGE);
+    if (!apiKey) {
+      setEstado("error");
+      setErrorMsg("Primero configurá tu API key gratis de Gemini en Ajustes (⚙️, arriba a la derecha).");
+      return;
+    }
+    if (!texto.trim()) return;
+    setEstado("cargando");
+    setErrorMsg("");
+    try {
+      const resultado = await parseConIA(texto.trim(), apiKey);
+      const monto = Math.abs(parseFloat(resultado.monto) || 0);
+      if (!monto) {
+        setEstado("error");
+        setErrorMsg("No identifiqué el monto. Probá de nuevo siendo más específico, ej: 'gasté 15000 en almuerzo'.");
+        return;
+      }
+      const descripcion = resultado.descripcion || (resultado.tipo === "ingreso" ? "Ingreso" : "Gasto");
+      if (resultado.tipo === "ingreso") {
+        const nuevo = { id: Date.now(), descripcion, monto, fecha: new Date().toISOString().split("T")[0] };
+        setData(d => ({ ...d, saldo: d.saldo + monto, ingresos: [nuevo, ...(d.ingresos || [])] }));
+      } else {
+        const categoria = CATEGORIAS.includes(resultado.categoria) ? resultado.categoria : "otro";
+        const nuevo = { id: Date.now(), descripcion, monto, categoria, fecha: new Date().toISOString().split("T")[0] };
+        setData(d => ({ ...d, saldo: d.saldo - monto, gastos: [nuevo, ...d.gastos] }));
+      }
+      setUltimo({ tipo: resultado.tipo, monto, descripcion });
+      setEstado("ok");
+      setTexto("");
+    } catch (e) {
+      setEstado("error");
+      setErrorMsg("No se pudo conectar con la IA. Revisá tu internet o tu API key en Ajustes. (" + e.message + ")");
+    }
+  }
+
+  return (
+    <>
+      <button
+        onClick={() => { setOpen(true); setEstado("idle"); setErrorMsg(""); }}
+        aria-label="Registro rápido con IA"
+        style={{
+          position: "fixed", bottom: 24, right: 20, width: 58, height: 58, borderRadius: 30,
+          background: "linear-gradient(135deg, #6C63FF, #8B5CF6)", border: "none", color: "#fff",
+          fontSize: 24, boxShadow: "0 6px 20px #6C63FF55", cursor: "pointer", zIndex: 50,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>⚡</button>
+
+      <Modal open={open} onClose={() => setOpen(false)} title="Registro rápido con IA">
+        <div style={{ color: "#8888AA", fontSize: 13, marginBottom: 12, lineHeight: 1.5 }}>
+          Escribí o dictá (tocá el micrófono del teclado) algo como <em>"gasté 15 mil en almuerzo"</em> o <em>"me pagaron 50 mil"</em>.
+        </div>
+        <textarea
+          value={texto}
+          onChange={e => setTexto(e.target.value)}
+          placeholder="Ej: pagué 20000 en transporte"
+          rows={3}
+          style={{
+            width: "100%", background: "#12122A", border: "1px solid #2A2A4A",
+            borderRadius: 10, padding: "10px 12px", color: "#fff", fontSize: 14,
+            outline: "none", boxSizing: "border-box", resize: "none", marginBottom: 12,
+          }}
+        />
+        {estado === "error" && <div style={{ color: "#EF4444", fontSize: 13, marginBottom: 12 }}>{errorMsg}</div>}
+        {estado === "ok" && ultimo && (
+          <div style={{ color: "#10B981", fontSize: 13, marginBottom: 12 }}>
+            Registrado: {ultimo.tipo === "ingreso" ? "+ " : "- "}{formatCOP(ultimo.monto)} · {ultimo.descripcion}
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 8 }}>
+          <Btn onClick={registrar} style={{ flex: 1 }}>{estado === "cargando" ? "Pensando..." : "Registrar con IA"}</Btn>
+          <Btn variant="ghost" onClick={() => setOpen(false)} style={{ flex: 1 }}>Cerrar</Btn>
+        </div>
+      </Modal>
+    </>
+  );
+}
+
+// ─── APP PRINCIPAL ────────────────────────────────────────────────────────────
+function App() {
+  const [tab, setTab] = useState("dashboard");
+  const [data, setDataRaw] = useState(loadData);
+  const [ajustesOpen, setAjustesOpen] = useState(false);
+
+  function setData(updater) {
+    setDataRaw(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch (e) {}
+      return next;
+    });
+  }
+
+  const TABS = [
+    { id: "dashboard", label: "Inicio", icon: "🏠" },
+    { id: "gastos", label: "Gastos", icon: "💸" },
+    { id: "deudas", label: "Deudas", icon: "💳" },
+    { id: "metas", label: "Metas", icon: "🎯" },
+    { id: "negocios", label: "Negocios", icon: "📦" },
+    { id: "prestamos", label: "Préstamos", icon: "🤝" },
+  ];
+
+  return (
+    <div style={{
+      background: "#0D0D1A", minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif",
+      color: "#fff", padding: "20px 16px 100px", maxWidth: 420, margin: "0 auto",
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+        <div>
+          <div style={{ color: "#6C63FF", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase" }}>
+            Mis Finanzas
+          </div>
+          <div style={{ color: "#fff", fontSize: 22, fontWeight: 800 }}>Hola 👋</div>
+        </div>
+        <button onClick={() => setAjustesOpen(true)} style={{
+          background: "#1A1A2E", border: "1px solid #2A2A4A", borderRadius: 10,
+          width: 38, height: 38, color: "#BBBBDD", fontSize: 16, cursor: "pointer",
+        }}>⚙️</button>
+      </div>
+
+      <TabBar tabs={TABS} active={tab} onChange={setTab} />
+
+      {tab === "dashboard" && <Dashboard data={data} setData={setData} />}
+      {tab === "gastos" && <Gastos data={data} setData={setData} />}
+      {tab === "deudas" && <Deudas data={data} setData={setData} />}
+      {tab === "metas" && <Metas data={data} setData={setData} />}
+      {tab === "negocios" && <Negocios data={data} setData={setData} />}
+      {tab === "prestamos" && <Prestamos data={data} setData={setData} />}
+
+      <RegistroRapido setData={setData} />
+      <Ajustes open={ajustesOpen} onClose={() => setAjustesOpen(false)} />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("service-worker.js").catch(() => {});
+    });
+  }
+</script>
+</body>
+</html>
