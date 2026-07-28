@@ -84,8 +84,8 @@ function loadData() {
 
 const CATEGORIAS = ["comida", "transporte", "ocio", "ropa", "salud", "imprevisto", "otro"];
 const CATEGORIA_COLORS = {
-  comida: "#F59E0B", transporte: "#3B82F6", ocio: "#8B5CF6", ropa: "#EC4899",
-  salud: "#10B981", imprevisto: "#EF4444", otro: "#6B7280",
+  comida: "#FF9F0A", transporte: "#0A84FF", ocio: "#BF5AF2", ropa: "#FF375F",
+  salud: "#30D158", imprevisto: "#FF453A", otro: "#6B7280",
 };
 
 function formatCOP(n) {
@@ -210,9 +210,9 @@ function InputMonto({ label, value, onChange, placeholder }) {
   }
   return (
     <div style={{ marginBottom: 12 }}>
-      {label && <label style={{ color: "#8888AA", fontSize: 12, display: "block", marginBottom: 4 }}>{label}</label>}
+      {label && <label style={{ color: "#98989F", fontSize: 12, display: "block", marginBottom: 4 }}>{label}</label>}
       <div style={{ position: "relative" }}>
-        <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#8888AA", fontSize: 14, pointerEvents: "none" }}>$</span>
+        <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#98989F", fontSize: 14, pointerEvents: "none" }}>$</span>
         <input
           inputMode="decimal"
           value={displayed}
@@ -225,8 +225,38 @@ function InputMonto({ label, value, onChange, placeholder }) {
   );
 }
 
+// ─── ÍCONOS ESTILO SF SYMBOLS (SVG, un solo trazo) ───────────────────────────
+const ICON_PATHS = {
+  house: "M3 11.2 12 4l9 7.2M5.5 9.8V19a1 1 0 0 0 1 1H9.5v-5.5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V20h3a1 1 0 0 0 1-1V9.8",
+  cart: "M3 4h2l1.8 10.6a1.6 1.6 0 0 0 1.6 1.4h8.4a1.6 1.6 0 0 0 1.6-1.3L20 8H6.2 M9 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm8 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z",
+  creditcard: "M3 6.5h18a1 1 0 0 1 1 1V17a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7.5a1 1 0 0 1 1-1ZM2 10.5h20M5.5 14h4",
+  target: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0-4a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0-3.2a1.8 1.8 0 1 0 0-3.6 1.8 1.8 0 0 0 0 3.6Z",
+  box: "m3.5 8 8.5-4 8.5 4-8.5 4-8.5-4Zm0 0v8l8.5 4m0-8v8m0-8 8.5-4v8l-8.5 4",
+  people: "M9 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-6 8c0-3 2.7-5 6-5s6 2 6 5M17 7a2.5 2.5 0 1 1-1-4.8M17.5 20c0-2.4-1.8-4.3-4-4.9",
+  gear: "M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4ZM19.4 12a7.4 7.4 0 0 1-.1 1.2l2 1.6-2 3.4-2.4-1a7 7 0 0 1-2 1.2l-.4 2.6H10l-.4-2.6a7 7 0 0 1-2-1.2l-2.4 1-2-3.4 2-1.6a7.4 7.4 0 0 1 0-2.4l-2-1.6 2-3.4 2.4 1a7 7 0 0 1 2-1.2L10 2h4.6l.4 2.6a7 7 0 0 1 2 1.2l2.4-1 2 3.4-2 1.6c.1.4.1.8.1 1.2Z",
+  sparkles: "M11 3 12.3 8.7 18 10 12.3 11.3 11 17 9.7 11.3 4 10 9.7 8.7 11 3Zm7-1 .7 2.6L21 5.3l-2.3.7L18 8.7l-.7-2.6L15 5.3l2.3-.7L18 2ZM6 14l.6 2.4L9 17l-2.4.6L6 20l-.6-2.4L3 17l2.4-.6L6 14Z",
+  chevron: "m9 6 6 6-6 6",
+  plus: "M12 5v14M5 12h14",
+  check: "m5 12.5 4.5 4.5L19 7",
+  circle: "M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z",
+  pencil: "m15.2 4.8 4 4L8.6 19.4l-4.8 1 1-4.8L15.2 4.8Z",
+  trash: "M4 7h16M9 7V4.8c0-.4.4-.8.9-.8h4.2c.5 0 .9.4.9.8V7m-8.5 0 .7 12a1 1 0 0 0 1 1h7.6a1 1 0 0 0 1-1l.7-12",
+  wallet: "M3 7.5A2.5 2.5 0 0 1 5.5 5h11A2.5 2.5 0 0 1 19 7.5v9a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 3 16.5v-9Zm12.5 4.3h3.8a1 1 0 0 1 1 1v1.6a1 1 0 0 1-1 1h-3.8a1.9 1.9 0 0 1 0-3.8Z",
+  bank: "M12 3 3 8v1.3h18V8L12 3ZM5 10v7.3M9.3 10v7.3M14.7 10v7.3M19 10v7.3M3.5 20.5h17",
+};
+
+function Icon({ name, size = 22, color = "currentColor", strokeWidth = 1.8, filled = false }) {
+  const d = ICON_PATHS[name];
+  if (!d) return null;
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? color : "none"} stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <path d={d} />
+    </svg>
+  );
+}
+
 // ─── COMPONENTES BASE ────────────────────────────────────────────────────────
-function Badge({ children, color = "#6C63FF" }) {
+function Badge({ children, color = "#5E5CE6" }) {
   return (
     <span style={{ background: color + "22", color, borderRadius: 6, padding: "2px 10px", fontSize: 12, fontWeight: 600, letterSpacing: 0.3 }}>
       {children}
@@ -236,13 +266,36 @@ function Badge({ children, color = "#6C63FF" }) {
 
 function Card({ children, style = {}, onClick }) {
   return (
-    <div onClick={onClick} className={onClick ? "pressable" : ""} style={{ background: "#1C1C1E", borderRadius: 16, padding: "20px 20px", marginBottom: 14, border: "1px solid rgba(255,255,255,0.08)", cursor: onClick ? "pointer" : "default", ...style }}>
+    <div onClick={onClick} className={onClick ? "pressable" : ""} style={{ background: "#1C1C1E", borderRadius: 14, padding: "16px 18px", marginBottom: 12, border: "none", cursor: onClick ? "pointer" : "default", ...style }}>
       {children}
     </div>
   );
 }
 
-function ProgressBar({ value, max, color = "#6C63FF" }) {
+// Lista agrupada estilo iOS (Ajustes/Contactos): filas dentro de un mismo
+// contenedor redondeado, separadas por líneas finas.
+function GroupedList({ children, header, footer }) {
+  return (
+    <div style={{ marginBottom: 20 }}>
+      {header && <div style={{ color: "rgba(235,235,245,0.6)", fontSize: 12, fontWeight: 500, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8, paddingLeft: 4 }}>{header}</div>}
+      <div style={{ background: "#1C1C1E", borderRadius: 14, overflow: "hidden" }}>{children}</div>
+      {footer && <div style={{ color: "rgba(235,235,245,0.5)", fontSize: 12, marginTop: 8, paddingLeft: 4 }}>{footer}</div>}
+    </div>
+  );
+}
+function Row({ children, onClick, last, style = {} }) {
+  return (
+    <div onClick={onClick} className={onClick ? "pressable" : ""} style={{
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      padding: "12px 14px", borderBottom: last ? "none" : "0.5px solid rgba(255,255,255,0.12)",
+      cursor: onClick ? "pointer" : "default", ...style,
+    }}>
+      {children}
+    </div>
+  );
+}
+
+function ProgressBar({ value, max, color = "#5E5CE6" }) {
   const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
   return (
     <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: 8, height: 8, overflow: "hidden", margin: "8px 0" }}>
@@ -253,19 +306,23 @@ function ProgressBar({ value, max, color = "#6C63FF" }) {
 
 function TabBar({ tabs, active, onChange }) {
   return (
-    <div style={{ display: "flex", background: "#2C2C2E", borderRadius: 12, padding: 4, marginBottom: 18, gap: 2, overflowX: "auto" }}>
-      {tabs.map(t => (
-        <button key={t.id} onClick={() => onChange(t.id)} style={{
-          flex: 1, minWidth: 60, padding: "8px 6px", borderRadius: 9, border: "none",
-          background: active === t.id ? "#6C63FF" : "transparent",
-          color: active === t.id ? "#fff" : "#8888AA",
-          fontWeight: active === t.id ? 700 : 500, fontSize: 11, cursor: "pointer",
-          transition: "all 0.2s", display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
-        }}>
-          <span style={{ fontSize: 16 }}>{t.icon}</span>
-          <span>{t.label}</span>
-        </button>
-      ))}
+    <div style={{
+      position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 40,
+      background: "rgba(28,28,30,0.86)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+      borderTop: "0.5px solid rgba(255,255,255,0.15)",
+    }}>
+      <div style={{ display: "flex", maxWidth: 420, margin: "0 auto", paddingBottom: "env(safe-area-inset-bottom, 6px)" }}>
+        {tabs.map(t => (
+          <button key={t.id} onClick={() => onChange(t.id)} style={{
+            flex: 1, padding: "8px 2px 6px", border: "none", background: "none",
+            color: active === t.id ? "#5E5CE6" : "rgba(235,235,245,0.55)",
+            cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+          }}>
+            <Icon name={t.icon} size={23} strokeWidth={active === t.id ? 2 : 1.6} />
+            <span style={{ fontSize: 10, fontWeight: active === t.id ? 600 : 400 }}>{t.label}</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -277,7 +334,7 @@ function Modal({ open, onClose, title, children }) {
       <div style={{ background: "rgba(28,28,30,0.92)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderRadius: 20, padding: 24, width: "100%", maxWidth: 380, border: "1px solid rgba(255,255,255,0.08)", maxHeight: "85vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
           <span style={{ color: "#fff", fontWeight: 700, fontSize: 16 }}>{title}</span>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "#8888AA", fontSize: 20, cursor: "pointer" }}>×</button>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#98989F", fontSize: 20, cursor: "pointer" }}>×</button>
         </div>
         {children}
       </div>
@@ -288,7 +345,7 @@ function Modal({ open, onClose, title, children }) {
 function Input({ label, ...props }) {
   return (
     <div style={{ marginBottom: 12 }}>
-      {label && <label style={{ color: "#8888AA", fontSize: 12, display: "block", marginBottom: 4 }}>{label}</label>}
+      {label && <label style={{ color: "#98989F", fontSize: 12, display: "block", marginBottom: 4 }}>{label}</label>}
       <input {...props} style={{ width: "100%", background: "#2C2C2E", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "10px 12px", color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box", ...props.style }} />
     </div>
   );
@@ -297,7 +354,7 @@ function Input({ label, ...props }) {
 function Select({ label, children, ...props }) {
   return (
     <div style={{ marginBottom: 12 }}>
-      {label && <label style={{ color: "#8888AA", fontSize: 12, display: "block", marginBottom: 4 }}>{label}</label>}
+      {label && <label style={{ color: "#98989F", fontSize: 12, display: "block", marginBottom: 4 }}>{label}</label>}
       <select {...props} style={{ width: "100%", background: "#2C2C2E", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "10px 12px", color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }}>
         {children}
       </select>
@@ -315,12 +372,12 @@ function SelectorCuenta({ cuentas, value, onChange }) {
 }
 
 function Btn({ children, onClick, variant = "primary", style = {} }) {
-  const base = { padding: "11px 18px", borderRadius: 10, border: "none", fontWeight: 700, fontSize: 14, cursor: "pointer", transition: "opacity 0.15s" };
+  const base = { padding: "12px 18px", borderRadius: 12, border: "none", fontWeight: 600, fontSize: 15, cursor: "pointer" };
   const variants = {
-    primary: { background: "#6C63FF", color: "#fff" },
-    danger: { background: "#EF444422", color: "#EF4444" },
-    ghost: { background: "rgba(255,255,255,0.08)", color: "#BBBBDD" },
-    success: { background: "#10B98122", color: "#10B981" },
+    primary: { background: "#5E5CE6", color: "#fff" },
+    danger: { background: "#FF453A22", color: "#FF453A" },
+    ghost: { background: "rgba(255,255,255,0.08)", color: "rgba(235,235,245,0.85)" },
+    success: { background: "#30D15822", color: "#30D158" },
   };
   return <button onClick={onClick} style={{ ...base, ...variants[variant], ...style }}>{children}</button>;
 }
@@ -328,20 +385,20 @@ function Btn({ children, onClick, variant = "primary", style = {} }) {
 
 // ─── COLOR AUTOMÁTICO POR NOMBRE DE CUENTA ───────────────────────────────────
 const CUENTA_COLORES = {
-  bancolombia: "#F59E0B",
-  nequi:       "#8B5CF6",
+  bancolombia: "#FF9F0A",
+  nequi:       "#BF5AF2",
   nu:          "#8B00FF",
   nubank:      "#8B00FF",
-  daviplata:   "#EF4444",
-  davivienda:  "#EF4444",
-  bbva:        "#3B82F6",
+  daviplata:   "#FF453A",
+  davivienda:  "#FF453A",
+  bbva:        "#0A84FF",
   itau:        "#F97316",
   paypal:      "#1E90FF",
   payoneer:    "#FF6600",
-  efectivo:    "#10B981",
-  cash:        "#10B981",
-  ahorro:      "#06B6D4",
-  default:     "#6C63FF",
+  efectivo:    "#30D158",
+  cash:        "#30D158",
+  ahorro:      "#64D2FF",
+  default:     "#5E5CE6",
 };
 
 function colorCuenta(nombre) {
@@ -401,23 +458,27 @@ function Cuentas({ open, onClose, data, setData }) {
     <Modal open={open} onClose={onClose} title={vista === "lista" ? "Tus cuentas" : vista === "nueva" ? "Nueva cuenta" : "Editar cuenta"}>
       {vista === "lista" && (
         <>
-          <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 14 }}>
+          <div style={{ color: "#98989F", fontSize: 12, marginBottom: 14 }}>
             Total unificado: <span style={{ color: "#fff", fontWeight: 700 }}>{formatCOP(total)}</span>
           </div>
-          {data.cuentas.length === 0 && <div style={{ color: "#8888AA", fontSize: 13, marginBottom: 14 }}>Todavía no tenés cuentas creadas.</div>}
-          {data.cuentas.map(c => (
-            <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <IconoCuenta nombre={c.nombre} size={32} />
-                <div>
-                  <div style={{ color: "#fff", fontWeight: 600 }}>{c.nombre}</div>
-                  <div style={{ color: "#9999CC", fontSize: 14 }}>{formatCOP(c.saldo)}</div>
-                </div>
-              </div>
-              <button onClick={() => abrirEditar(c)} style={{ background: "none", border: "none", color: "#8888AA", fontSize: 13, cursor: "pointer" }}>Editar</button>
+          {data.cuentas.length === 0 && <div style={{ color: "#98989F", fontSize: 13, marginBottom: 14 }}>Todavía no tenés cuentas creadas.</div>}
+          {data.cuentas.length > 0 && (
+            <div style={{ background: "#2C2C2E", borderRadius: 14, overflow: "hidden", marginBottom: 14 }}>
+              {data.cuentas.map((c, i) => (
+                <Row key={c.id} onClick={() => abrirEditar(c)} last={i === data.cuentas.length - 1}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <IconoCuenta nombre={c.nombre} size={32} />
+                    <div>
+                      <div style={{ color: "#fff", fontWeight: 500, fontSize: 15 }}>{c.nombre}</div>
+                      <div style={{ color: "rgba(235,235,245,0.6)", fontSize: 13 }}>{formatCOP(c.saldo)}</div>
+                    </div>
+                  </div>
+                  <Icon name="chevron" size={16} color="rgba(235,235,245,0.35)" />
+                </Row>
+              ))}
             </div>
-          ))}
-          <Btn variant="ghost" onClick={abrirNueva} style={{ width: "100%", marginTop: 14 }}>+ Agregar cuenta</Btn>
+          )}
+          <Btn variant="ghost" onClick={abrirNueva} style={{ width: "100%" }}>+ Agregar cuenta</Btn>
         </>
       )}
       {(vista === "nueva" || vista === "editar") && (
@@ -456,7 +517,7 @@ function TendenciaMensual({ data }) {
 
   return (
     <Card>
-      <div style={{ color: "#8888AA", fontSize: 11, fontWeight: 700, marginBottom: 14, letterSpacing: 0.5 }}>ÚLTIMOS 12 MESES</div>
+      <div style={{ color: "#98989F", fontSize: 11, fontWeight: 700, marginBottom: 14, letterSpacing: 0.5 }}>ÚLTIMOS 12 MESES</div>
       <div style={{ display: "flex", alignItems: "flex-end", gap: 3 }}>
         {filas.map(f => {
           const gh = Math.max(3, Math.round((f.gastado / max) * BAR_H));
@@ -475,15 +536,15 @@ function TendenciaMensual({ data }) {
                   background: "rgba(255,255,255,0.08)", borderRadius: 8, padding: "6px 8px", marginBottom: 4,
                   whiteSpace: "nowrap", zIndex: 10, border: "1px solid #3A3A5A",
                 }}>
-                  <div style={{ color: "#EF4444", fontSize: 10, fontWeight: 600 }}>−{formatCOP(f.gastado)}</div>
-                  <div style={{ color: "#10B981", fontSize: 10, fontWeight: 600 }}>+{formatCOP(f.ingresado)}</div>
+                  <div style={{ color: "#FF453A", fontSize: 10, fontWeight: 600 }}>−{formatCOP(f.gastado)}</div>
+                  <div style={{ color: "#30D158", fontSize: 10, fontWeight: 600 }}>+{formatCOP(f.ingresado)}</div>
                 </div>
               )}
               <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: BAR_H }}>
-                <div style={{ width: 6, height: gh, background: esMes ? "#EF4444" : "#EF444466", borderRadius: "3px 3px 0 0", transition: "height .3s" }} />
-                <div style={{ width: 6, height: ih, background: esMes ? "#10B981" : "#10B98166", borderRadius: "3px 3px 0 0", transition: "height .3s" }} />
+                <div style={{ width: 6, height: gh, background: esMes ? "#FF453A" : "#FF453A66", borderRadius: "3px 3px 0 0", transition: "height .3s" }} />
+                <div style={{ width: 6, height: ih, background: esMes ? "#30D158" : "#30D15866", borderRadius: "3px 3px 0 0", transition: "height .3s" }} />
               </div>
-              <div style={{ color: esMes ? "#fff" : "#8888AA", fontSize: 9, fontWeight: esMes ? 700 : 400, textTransform: "capitalize" }}>
+              <div style={{ color: esMes ? "#fff" : "#98989F", fontSize: 9, fontWeight: esMes ? 700 : 400, textTransform: "capitalize" }}>
                 {f.label}
               </div>
             </div>
@@ -492,14 +553,14 @@ function TendenciaMensual({ data }) {
       </div>
       <div style={{ display: "flex", gap: 16, marginTop: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          <div style={{ width: 8, height: 8, borderRadius: 2, background: "#EF4444" }} />
-          <span style={{ color: "#8888AA", fontSize: 11 }}>Gastos</span>
+          <div style={{ width: 8, height: 8, borderRadius: 2, background: "#FF453A" }} />
+          <span style={{ color: "#98989F", fontSize: 11 }}>Gastos</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          <div style={{ width: 8, height: 8, borderRadius: 2, background: "#10B981" }} />
-          <span style={{ color: "#8888AA", fontSize: 11 }}>Ingresos</span>
+          <div style={{ width: 8, height: 8, borderRadius: 2, background: "#30D158" }} />
+          <span style={{ color: "#98989F", fontSize: 11 }}>Ingresos</span>
         </div>
-        <span style={{ color: "#8888AA", fontSize: 11, marginLeft: "auto", opacity: 0.7 }}>toca una barra para ver</span>
+        <span style={{ color: "#98989F", fontSize: 11, marginLeft: "auto", opacity: 0.7 }}>toca una barra para ver</span>
       </div>
     </Card>
   );
@@ -507,25 +568,39 @@ function TendenciaMensual({ data }) {
 
 // ─── HISTORIAL UNIFICADO DE MOVIMIENTOS ──────────────────────────────────────
 function Historial({ data }) {
-  const ICONOS = { gasto: "💸", ingreso: "💰", abono_deuda: "💳", abono_prestamo: "🤝", aporte_meta: "🎯", negocio_compra: "📦", negocio_venta: "📦", reverso: "↩️" };
+  const ICONOS = {
+    gasto: ["cart", "#FF453A"], ingreso: ["wallet", "#30D158"], abono_deuda: ["creditcard", "#FF9F0A"],
+    abono_prestamo: ["people", "#5E5CE6"], aporte_meta: ["target", "#5E5CE6"],
+    negocio_compra: ["box", "#FF9F0A"], negocio_venta: ["box", "#30D158"], reverso: ["circle", "rgba(235,235,245,0.6)"],
+  };
   const items = (data.movimientos || []).slice(0, 15);
   return (
-    <Card>
-      <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 10 }}>HISTORIAL DE MOVIMIENTOS</div>
-      {items.length === 0 && <div style={{ color: "#8888AA", fontSize: 13 }}>Todavía no hay movimientos registrados.</div>}
-      {items.map(m => (
-        <div key={m.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <span>{ICONOS[m.tipo] || "•"}</span>
-            <div>
-              <div style={{ color: "#fff", fontSize: 13 }}>{m.descripcion}</div>
-              <div style={{ color: "#8888AA", fontSize: 11 }}>{m.cuentaNombre} · {m.fecha}</div>
-            </div>
-          </div>
-          <div style={{ color: m.signo === "+" ? "#10B981" : "#EF4444", fontWeight: 700, fontSize: 13 }}>{m.signo}{formatCOP(m.monto)}</div>
+    <div style={{ marginBottom: 20 }}>
+      <div style={{ color: "rgba(235,235,245,0.6)", fontSize: 12, fontWeight: 500, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8, paddingLeft: 4 }}>Historial de movimientos</div>
+      {items.length === 0 ? (
+        <div style={{ background: "#1C1C1E", borderRadius: 14, padding: 16, color: "#98989F", fontSize: 13 }}>Todavía no hay movimientos registrados.</div>
+      ) : (
+        <div style={{ background: "#1C1C1E", borderRadius: 14, overflow: "hidden" }}>
+          {items.map((m, i) => {
+            const [iconName, iconColor] = ICONOS[m.tipo] || ["circle", "#8E8E93"];
+            return (
+              <Row key={m.id} last={i === items.length - 1}>
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <div style={{ width: 30, height: 30, borderRadius: 15, background: iconColor + "22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Icon name={iconName} size={15} color={iconColor} strokeWidth={2} />
+                  </div>
+                  <div>
+                    <div style={{ color: "#fff", fontSize: 14 }}>{m.descripcion}</div>
+                    <div style={{ color: "rgba(235,235,245,0.55)", fontSize: 11.5 }}>{m.cuentaNombre} · {m.fecha}</div>
+                  </div>
+                </div>
+                <div style={{ color: m.signo === "+" ? "#30D158" : "#FF453A", fontWeight: 600, fontSize: 14 }}>{m.signo}{formatCOP(m.monto)}</div>
+              </Row>
+            );
+          })}
         </div>
-      ))}
-    </Card>
+      )}
+    </div>
   );
 }
 
@@ -542,39 +617,39 @@ function Dashboard({ data, setData, goTo }) {
 
   return (
     <div>
-      <Card onClick={() => setCuentasOpen(true)} style={{ background: "linear-gradient(135deg, #1C1C1E, #2A1A4E)", borderColor: "#6C63FF44", cursor: "pointer" }}>
+      <Card onClick={() => setCuentasOpen(true)}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div style={{ flex: 1 }}>
-            <div style={{ color: "#9999CC", fontSize: 11, marginBottom: 2, letterSpacing: 1 }}>SALDO TOTAL</div>
+            <div style={{ color: "#ABABB3", fontSize: 11, marginBottom: 2, letterSpacing: 1 }}>SALDO TOTAL</div>
             <div style={{ color: "#fff", fontSize: 34, fontWeight: 800, letterSpacing: -1 }}>{formatCOP(totalCuentas)}</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 14px", marginTop: 12 }}>
               {data.cuentas.map(c => (
                 <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <IconoCuenta nombre={c.nombre} size={20} />
                   <div>
-                    <div style={{ color: "#8888AA", fontSize: 10, lineHeight: 1 }}>{c.nombre}</div>
-                    <div style={{ color: "#DDDDEE", fontSize: 12, fontWeight: 600, lineHeight: 1.3 }}>{formatCOP(c.saldo)}</div>
+                    <div style={{ color: "#98989F", fontSize: 10, lineHeight: 1 }}>{c.nombre}</div>
+                    <div style={{ color: "#E5E5EA", fontSize: 12, fontWeight: 600, lineHeight: 1.3 }}>{formatCOP(c.saldo)}</div>
                   </div>
                 </div>
               ))}
             </div>
-            <div style={{ color: "#6C63FF", fontSize: 11, marginTop: 10, opacity: 0.8 }}>toca para editar cuentas ›</div>
+            <div style={{ color: "#5E5CE6", fontSize: 11, marginTop: 10, opacity: 0.8 }}>toca para editar cuentas ›</div>
           </div>
         </div>
       </Card>
       <Cuentas open={cuentasOpen} onClose={() => setCuentasOpen(false)} data={data} setData={setData} />
 
       {proximoPago && (
-        <Card onClick={() => goTo("deudas")} style={{ borderColor: diasRestantes(proximoPago.fechaPago) <= 10 ? "#EF444444" : "#F59E0B44" }}>
+        <Card onClick={() => goTo("deudas")} style={{ borderLeft: diasRestantes(proximoPago.fechaPago) <= 10 ? "3px solid #FF453A" : "3px solid #FF9F0A" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
-              <div style={{ color: "#8888AA", fontSize: 11, marginBottom: 2 }}>⚠️ PRÓXIMO PAGO</div>
+              <div style={{ color: "#98989F", fontSize: 11, marginBottom: 2 }}>⚠️ PRÓXIMO PAGO</div>
               <div style={{ color: "#fff", fontWeight: 700 }}>{proximoPago.nombre}</div>
-              <div style={{ color: "#9999CC", fontSize: 13 }}>{formatCOP(proximoPago.saldo)}</div>
+              <div style={{ color: "#ABABB3", fontSize: 13 }}>{formatCOP(proximoPago.saldo)}</div>
             </div>
             <div style={{ textAlign: "right" }}>
-              <Badge color={diasRestantes(proximoPago.fechaPago) <= 10 ? "#EF4444" : "#F59E0B"}>{diasRestantes(proximoPago.fechaPago)}d</Badge>
-              <div style={{ color: "#8888AA", fontSize: 11, marginTop: 4 }}>{new Date(proximoPago.fechaPago).toLocaleDateString("es-CO", { day: "numeric", month: "short" })}</div>
+              <Badge color={diasRestantes(proximoPago.fechaPago) <= 10 ? "#FF453A" : "#FF9F0A"}>{diasRestantes(proximoPago.fechaPago)}d</Badge>
+              <div style={{ color: "#98989F", fontSize: 11, marginTop: 4 }}>{new Date(proximoPago.fechaPago).toLocaleDateString("es-CO", { day: "numeric", month: "short" })}</div>
             </div>
           </div>
         </Card>
@@ -582,30 +657,30 @@ function Dashboard({ data, setData, goTo }) {
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
         <Card onClick={() => goTo("deudas")} style={{ margin: 0, padding: "12px 12px" }}>
-          <div style={{ color: "#8888AA", fontSize: 10 }}>DEUDA</div>
-          <div style={{ color: "#EF4444", fontWeight: 700, fontSize: 15, marginTop: 3 }}>{formatCOP(totalDeudas)}</div>
+          <div style={{ color: "#98989F", fontSize: 10 }}>DEUDA</div>
+          <div style={{ color: "#FF453A", fontWeight: 700, fontSize: 15, marginTop: 3 }}>{formatCOP(totalDeudas)}</div>
         </Card>
         <Card onClick={() => goTo("gastos")} style={{ margin: 0, padding: "12px 12px" }}>
-          <div style={{ color: "#8888AA", fontSize: 10 }}>GASTOS MES</div>
-          <div style={{ color: "#F59E0B", fontWeight: 700, fontSize: 15, marginTop: 3 }}>{formatCOP(gastosMes)}</div>
+          <div style={{ color: "#98989F", fontSize: 10 }}>GASTOS MES</div>
+          <div style={{ color: "#FF9F0A", fontWeight: 700, fontSize: 15, marginTop: 3 }}>{formatCOP(gastosMes)}</div>
         </Card>
         <Card onClick={() => goTo("gastos")} style={{ margin: 0, padding: "12px 12px" }}>
-          <div style={{ color: "#8888AA", fontSize: 10 }}>INGRESOS MES</div>
-          <div style={{ color: "#10B981", fontWeight: 700, fontSize: 15, marginTop: 3 }}>{formatCOP(ingresosMes)}</div>
+          <div style={{ color: "#98989F", fontSize: 10 }}>INGRESOS MES</div>
+          <div style={{ color: "#30D158", fontWeight: 700, fontSize: 15, marginTop: 3 }}>{formatCOP(ingresosMes)}</div>
         </Card>
       </div>
 
       {todosPendientes.length > 0 && (
-        <Card onClick={() => goTo("gastos")} style={{ borderColor: "#06B6D433", padding: "14px 16px" }}>
-          <div style={{ color: "#06B6D4", fontSize: 11, fontWeight: 700, marginBottom: 8, letterSpacing: 0.5 }}>📅 PENDIENTES ESTE MES</div>
+        <Card onClick={() => goTo("gastos")} style={{ borderLeft: "3px solid #64D2FF", padding: "14px 16px" }}>
+          <div style={{ color: "#64D2FF", fontSize: 11, fontWeight: 700, marginBottom: 8, letterSpacing: 0.5 }}>📅 PENDIENTES ESTE MES</div>
           {todosPendientes.map(g => (
             <div key={g.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: 5 }}>
-              <span style={{ color: "#BBBBDD", fontSize: 13 }}>{g.nombre}</span>
-              <span style={{ color: "#06B6D4", fontWeight: 700, fontSize: 13 }}>{formatCOP(g.monto)}</span>
+              <span style={{ color: "#D1D1D6", fontSize: 13 }}>{g.nombre}</span>
+              <span style={{ color: "#64D2FF", fontWeight: 700, fontSize: 13 }}>{formatCOP(g.monto)}</span>
             </div>
           ))}
-          <div style={{ color: "#8888AA", fontSize: 11, marginTop: 6 }}>
-            Total pendiente: <span style={{ color: "#06B6D4", fontWeight: 700 }}>{formatCOP(todosPendientes.reduce((a, g) => a + g.monto, 0))}</span>
+          <div style={{ color: "#98989F", fontSize: 11, marginTop: 6 }}>
+            Total pendiente: <span style={{ color: "#64D2FF", fontWeight: 700 }}>{formatCOP(todosPendientes.reduce((a, g) => a + g.monto, 0))}</span>
           </div>
         </Card>
       )}
@@ -614,10 +689,10 @@ function Dashboard({ data, setData, goTo }) {
         <Card key={m.id} onClick={() => goTo("metas")}>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <div style={{ color: "#fff", fontWeight: 600 }}>🎯 {m.nombre}</div>
-            <div style={{ color: "#9999CC", fontSize: 13 }}>{m.objetivo > 0 ? Math.round((m.actual / m.objetivo) * 100) : 0}%</div>
+            <div style={{ color: "#ABABB3", fontSize: 13 }}>{m.objetivo > 0 ? Math.round((m.actual / m.objetivo) * 100) : 0}%</div>
           </div>
           <ProgressBar value={m.actual} max={m.objetivo} color={m.color} />
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#8888AA" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#98989F" }}>
             <span>{formatCOP(m.actual)}</span>
             <span>Meta: {formatCOP(m.objetivo)}</span>
           </div>
@@ -667,21 +742,21 @@ function Deudas({ data, setData }) {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
             <div>
               <div style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>{d.nombre}</div>
-              <div style={{ color: "#EF4444", fontSize: 22, fontWeight: 800, marginTop: 2 }}>{formatCOP(d.saldo)}</div>
+              <div style={{ color: "#FF453A", fontSize: 22, fontWeight: 800, marginTop: 2 }}>{formatCOP(d.saldo)}</div>
             </div>
-            {d.fechaPago && <Badge color={diasRestantes(d.fechaPago) <= 10 ? "#EF4444" : "#F59E0B"}>{diasRestantes(d.fechaPago)}d</Badge>}
+            {d.fechaPago && <Badge color={diasRestantes(d.fechaPago) <= 10 ? "#FF453A" : "#FF9F0A"}>{diasRestantes(d.fechaPago)}d</Badge>}
           </div>
-          {d.fechaPago && <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 8 }}>Vence: {new Date(d.fechaPago).toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" })}</div>}
+          {d.fechaPago && <div style={{ color: "#98989F", fontSize: 12, marginBottom: 8 }}>Vence: {new Date(d.fechaPago).toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" })}</div>}
           {(d.interesMensual > 0 || d.comisiones > 0) && (
             <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-              {d.interesMensual > 0 && <Badge color="#EF4444">Interés {formatCOP(d.interesMensual)}/mes</Badge>}
-              {d.comisiones > 0 && <Badge color="#F59E0B">Comisiones {formatCOP(d.comisiones)}/mes</Badge>}
+              {d.interesMensual > 0 && <Badge color="#FF453A">Interés {formatCOP(d.interesMensual)}/mes</Badge>}
+              {d.comisiones > 0 && <Badge color="#FF9F0A">Comisiones {formatCOP(d.comisiones)}/mes</Badge>}
             </div>
           )}
-          {d.abonos.length > 0 && <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 8 }}>{d.abonos.length} abono(s) registrado(s)</div>}
+          {d.abonos.length > 0 && <div style={{ color: "#98989F", fontSize: 12, marginBottom: 8 }}>{d.abonos.length} abono(s) registrado(s)</div>}
           <Btn onClick={() => { setModal("abonar-" + d.id); setForm({ cuentaId: data.cuentas[0]?.id }); }} style={{ width: "100%" }}>Registrar abono</Btn>
           <Modal open={modal === "abonar-" + d.id} onClose={() => setModal(null)} title={`Abonar a ${d.nombre}`}>
-            <div style={{ color: "#8888AA", fontSize: 13, marginBottom: 12 }}>Saldo actual: {formatCOP(d.saldo)}</div>
+            <div style={{ color: "#98989F", fontSize: 13, marginBottom: 12 }}>Saldo actual: {formatCOP(d.saldo)}</div>
             <InputMonto label="Monto del abono" value={form.monto || ""} onChange={v => setForm(f => ({ ...f, monto: v }))} />
             <SelectorCuenta cuentas={data.cuentas} value={form.cuentaId} onChange={v => setForm(f => ({ ...f, cuentaId: v }))} />
             <div style={{ display: "flex", gap: 8 }}>
@@ -785,34 +860,36 @@ function Gastos({ data, setData }) {
 
   return (
     <div>
-      <Card style={{ background: "linear-gradient(135deg, #1C1C1E, #2E1A1A)", borderColor: "#F59E0B44" }}>
-        <div style={{ color: "#8888AA", fontSize: 12 }}>GASTADO ESTE MES</div>
-        <div style={{ color: "#F59E0B", fontSize: 28, fontWeight: 800 }}>{formatCOP(totalMes)}</div>
-        <div style={{ color: "#8888AA", fontSize: 12, marginTop: 4 }}>{gastosMes.length} movimiento(s)</div>
+      <Card style={{ borderLeft: "3px solid #FF9F0A" }}>
+        <div style={{ color: "#98989F", fontSize: 12 }}>GASTADO ESTE MES</div>
+        <div style={{ color: "#FF9F0A", fontSize: 28, fontWeight: 800 }}>{formatCOP(totalMes)}</div>
+        <div style={{ color: "#98989F", fontSize: 12, marginTop: 4 }}>{gastosMes.length} movimiento(s)</div>
       </Card>
 
       <Card>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <div style={{ color: "#8888AA", fontSize: 12 }}>GASTOS FIJOS DE ESTE MES</div>
-          <button onClick={() => { setFijoForm({}); setFijoModal("nuevo"); }} style={{ background: "none", border: "none", color: "#6C63FF", fontSize: 13, cursor: "pointer", fontWeight: 700 }}>+ Agregar</button>
+          <div style={{ color: "#98989F", fontSize: 12 }}>GASTOS FIJOS DE ESTE MES</div>
+          <button onClick={() => { setFijoForm({}); setFijoModal("nuevo"); }} style={{ background: "none", border: "none", color: "#5E5CE6", fontSize: 13, cursor: "pointer", fontWeight: 700 }}>+ Agregar</button>
         </div>
-        {data.gastosFijos.length === 0 && <div style={{ color: "#8888AA", fontSize: 13 }}>No tenés gastos fijos configurados.</div>}
+        {data.gastosFijos.length === 0 && <div style={{ color: "#98989F", fontSize: 13 }}>No tenés gastos fijos configurados.</div>}
         {data.gastosFijos.map(fijo => {
           const cumplido = fijoDelMes(fijo.id);
           return (
             <div key={fijo.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
               <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                <span style={{ fontSize: 18 }}>{cumplido ? "✅" : "⭕"}</span>
+                <span style={{ display: "flex" }}>
+                  <Icon name="check" size={20} color={cumplido ? "#30D158" : "rgba(235,235,245,0.3)"} strokeWidth={2.2} filled={false} />
+                </span>
                 <div>
                   <div style={{ color: "#fff", fontSize: 14, fontWeight: 600 }}>{fijo.nombre}</div>
-                  <div style={{ color: "#8888AA", fontSize: 12 }}>{formatCOP(cumplido ? cumplido.monto : fijo.monto)}{fijo.nota ? " · " + fijo.nota : ""}</div>
+                  <div style={{ color: "#98989F", fontSize: 12 }}>{formatCOP(cumplido ? cumplido.monto : fijo.monto)}{fijo.nota ? " · " + fijo.nota : ""}</div>
                 </div>
               </div>
               <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                 {cumplido
-                  ? <button onClick={() => deshacerFijo(fijo.id)} style={{ background: "none", border: "none", color: "#8888AA", fontSize: 12, cursor: "pointer" }}>Deshacer</button>
+                  ? <button onClick={() => deshacerFijo(fijo.id)} style={{ background: "none", border: "none", color: "#98989F", fontSize: 12, cursor: "pointer" }}>Deshacer</button>
                   : <Btn onClick={() => { setFijoForm({ monto: fijo.monto, cuentaId: data.cuentas[0]?.id }); setFijoModal("pagar-" + fijo.id); }} style={{ padding: "6px 12px", fontSize: 12 }}>Pagar</Btn>}
-                <button onClick={() => { setFijoForm({ nombre: fijo.nombre, monto: fijo.monto, categoria: fijo.categoria, nota: fijo.nota }); setFijoModal("editar-" + fijo.id); }} style={{ background: "none", border: "none", color: "#8888AA", fontSize: 14, cursor: "pointer" }}>✏️</button>
+                <button onClick={() => { setFijoForm({ nombre: fijo.nombre, monto: fijo.monto, categoria: fijo.categoria, nota: fijo.nota }); setFijoModal("editar-" + fijo.id); }} style={{ background: "none", border: "none", color: "#98989F", fontSize: 14, cursor: "pointer" }}>✏️</button>
               </div>
             </div>
           );
@@ -821,14 +898,14 @@ function Gastos({ data, setData }) {
 
       {porCategoria.length > 0 && (
         <Card>
-          <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 10 }}>POR CATEGORÍA</div>
+          <div style={{ color: "#98989F", fontSize: 12, marginBottom: 10 }}>POR CATEGORÍA</div>
           {porCategoria.map(c => (
             <div key={c.cat} style={{ marginBottom: 8 }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                <span style={{ color: "#BBBBDD", fontSize: 13, textTransform: "capitalize" }}>{c.cat}</span>
+                <span style={{ color: "#D1D1D6", fontSize: 13, textTransform: "capitalize" }}>{c.cat}</span>
                 <span style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>{formatCOP(c.total)}</span>
               </div>
-              <ProgressBar value={c.total} max={totalMes} color={CATEGORIA_COLORS[c.cat] || "#6C63FF"} />
+              <ProgressBar value={c.total} max={totalMes} color={CATEGORIA_COLORS[c.cat] || "#5E5CE6"} />
             </div>
           ))}
         </Card>
@@ -836,7 +913,7 @@ function Gastos({ data, setData }) {
 
       <Btn onClick={() => { setModal(true); setForm({ cuentaId: data.cuentas[0]?.id }); }} style={{ width: "100%", marginBottom: 14 }}>+ Registrar gasto</Btn>
 
-      {gastosMes.length === 0 && <div style={{ textAlign: "center", color: "#8888AA", padding: 30 }}>Sin gastos este mes</div>}
+      {gastosMes.length === 0 && <div style={{ textAlign: "center", color: "#98989F", padding: 30 }}>Sin gastos este mes</div>}
 
       {gastosMes.map(g => (
         <Card key={g.id} style={{ padding: "14px 16px" }}>
@@ -844,14 +921,14 @@ function Gastos({ data, setData }) {
             <div>
               <div style={{ color: "#fff", fontWeight: 600, fontSize: 14 }}>{g.descripcion}</div>
               <div style={{ display: "flex", gap: 6, marginTop: 4, alignItems: "center", flexWrap: "wrap" }}>
-                <Badge color={CATEGORIA_COLORS[g.categoria] || "#6C63FF"}>{g.categoria}</Badge>
-                {g.fijoId && <Badge color="#6C63FF">🔁 Fijo</Badge>}
-                <span style={{ color: "#8888AA", fontSize: 12 }}>{(data.cuentas.find(c => c.id === g.cuentaId) || {}).nombre || "—"} · {g.fecha}</span>
+                <Badge color={CATEGORIA_COLORS[g.categoria] || "#5E5CE6"}>{g.categoria}</Badge>
+                {g.fijoId && <Badge color="#5E5CE6">🔁 Fijo</Badge>}
+                <span style={{ color: "#98989F", fontSize: 12 }}>{(data.cuentas.find(c => c.id === g.cuentaId) || {}).nombre || "—"} · {g.fecha}</span>
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ color: "#EF4444", fontWeight: 700 }}>{formatCOP(g.monto)}</span>
-              <button onClick={() => eliminar(g.id)} style={{ background: "none", border: "none", color: "#8888AA", cursor: "pointer", fontSize: 16 }}>🗑</button>
+              <span style={{ color: "#FF453A", fontWeight: 700 }}>{formatCOP(g.monto)}</span>
+              <button onClick={() => eliminar(g.id)} style={{ background: "none", border: "none", color: "#98989F", cursor: "pointer", fontSize: 16 }}>🗑</button>
             </div>
           </div>
         </Card>
@@ -932,7 +1009,7 @@ function Metas({ data, setData }) {
 
   function agregarMeta() {
     const plazo = parseInt(form.plazoMeses || 0) || 6;
-    const nueva = { id: Date.now(), nombre: form.nombre || "Nueva meta", objetivo: parseFloat(form.objetivo || 0), actual: 0, color: form.color || "#6C63FF", plazoMeses: plazo };
+    const nueva = { id: Date.now(), nombre: form.nombre || "Nueva meta", objetivo: parseFloat(form.objetivo || 0), actual: 0, color: form.color || "#5E5CE6", plazoMeses: plazo };
     setData(d => ({ ...d, metas: [...d.metas, nueva] }));
     setModal(null); setForm({});
   }
@@ -953,24 +1030,24 @@ function Metas({ data, setData }) {
             </div>
             <ProgressBar value={m.actual} max={m.objetivo} color={m.color} />
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 8 }}>
-              <span style={{ color: "#10B981" }}>{formatCOP(m.actual)} ahorrado</span>
-              <span style={{ color: "#8888AA" }}>Meta: {formatCOP(m.objetivo)}</span>
+              <span style={{ color: "#30D158" }}>{formatCOP(m.actual)} ahorrado</span>
+              <span style={{ color: "#98989F" }}>Meta: {formatCOP(m.objetivo)}</span>
             </div>
             {faltante > 0 && (
               <div style={{ background: "#2C2C2E", borderRadius: 8, padding: "8px 10px", marginBottom: 12 }}>
-                <div style={{ color: "#8888AA", fontSize: 12 }}>
-                  Faltan <span style={{ color: "#BBBBDD", fontWeight: 600 }}>{formatCOP(faltante)}</span>
+                <div style={{ color: "#98989F", fontSize: 12 }}>
+                  Faltan <span style={{ color: "#D1D1D6", fontWeight: 600 }}>{formatCOP(faltante)}</span>
                 </div>
-                <div style={{ color: "#8888AA", fontSize: 12, marginTop: 2 }}>
-                  Ahorrando <span style={{ color: m.color, fontWeight: 700 }}>{formatCOP(ahorroMensual)}/mes</span> lo lográs en <span style={{ color: "#BBBBDD", fontWeight: 600 }}>{mesesRestantes} mes(es)</span>
+                <div style={{ color: "#98989F", fontSize: 12, marginTop: 2 }}>
+                  Ahorrando <span style={{ color: m.color, fontWeight: 700 }}>{formatCOP(ahorroMensual)}/mes</span> lo lográs en <span style={{ color: "#D1D1D6", fontWeight: 600 }}>{mesesRestantes} mes(es)</span>
                 </div>
-                <div style={{ color: "#8888AA", fontSize: 11, marginTop: 2, opacity: 0.7 }}>Plazo definido: {plazo} meses</div>
+                <div style={{ color: "#98989F", fontSize: 11, marginTop: 2, opacity: 0.7 }}>Plazo definido: {plazo} meses</div>
               </div>
             )}
             <Btn onClick={() => { setForm({ cuentaId: data.cuentas[0]?.id }); setModal("abonar-" + m.id); }} style={{ width: "100%" }}>+ Agregar ahorro</Btn>
             <Modal open={modal === "abonar-" + m.id} onClose={() => setModal(null)} title={`Ahorrar para ${m.nombre}`}>
               <div style={{ background: "#2C2C2E", borderRadius: 8, padding: "8px 10px", marginBottom: 12 }}>
-                <div style={{ color: "#8888AA", fontSize: 12 }}>Cuota sugerida: <span style={{ color: m.color, fontWeight: 700 }}>{formatCOP(ahorroMensual)}/mes</span></div>
+                <div style={{ color: "#98989F", fontSize: 12 }}>Cuota sugerida: <span style={{ color: m.color, fontWeight: 700 }}>{formatCOP(ahorroMensual)}/mes</span></div>
               </div>
               <InputMonto label="Monto (COP)" value={form.monto || ""} onChange={v => setForm(f => ({ ...f, monto: v }))} />
               <SelectorCuenta cuentas={data.cuentas} value={form.cuentaId} onChange={v => setForm(f => ({ ...f, cuentaId: v }))} />
@@ -997,8 +1074,8 @@ function Metas({ data, setData }) {
         />
         {form.objetivo && (
           <div style={{ background: "#2C2C2E", borderRadius: 8, padding: "8px 10px", marginBottom: 12 }}>
-            <div style={{ color: "#8888AA", fontSize: 12 }}>
-              Tendrías que ahorrar <span style={{ color: "#6C63FF", fontWeight: 700 }}>
+            <div style={{ color: "#98989F", fontSize: 12 }}>
+              Tendrías que ahorrar <span style={{ color: "#5E5CE6", fontWeight: 700 }}>
                 {formatCOP(Math.ceil(parseFloat(form.objetivo || 0) / (parseInt(form.plazoMeses || 0) || 6)))}
               </span> por mes
             </div>
@@ -1049,29 +1126,29 @@ function Negocios({ data, setData }) {
 
   return (
     <div>
-      <Card style={{ borderColor: "#10B98144" }}>
-        <div style={{ color: "#8888AA", fontSize: 12 }}>GANANCIAS TOTALES</div>
-        <div style={{ color: "#10B981", fontSize: 26, fontWeight: 800 }}>{formatCOP(gananciasTotal)}</div>
-        <div style={{ color: "#8888AA", fontSize: 12 }}>{vendidos.length} operación(es) cerrada(s)</div>
+      <Card style={{ borderLeft: "3px solid #30D158" }}>
+        <div style={{ color: "#98989F", fontSize: 12 }}>GANANCIAS TOTALES</div>
+        <div style={{ color: "#30D158", fontSize: 26, fontWeight: 800 }}>{formatCOP(gananciasTotal)}</div>
+        <div style={{ color: "#98989F", fontSize: 12 }}>{vendidos.length} operación(es) cerrada(s)</div>
       </Card>
 
       {enCurso.length > 0 && (
         <>
-          <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 8, fontWeight: 600 }}>EN CURSO</div>
+          <div style={{ color: "#98989F", fontSize: 12, marginBottom: 8, fontWeight: 600 }}>EN CURSO</div>
           {enCurso.map(n => (
-            <Card key={n.id} style={{ borderColor: "#F59E0B44" }}>
+            <Card key={n.id} style={{ borderLeft: "3px solid #FF9F0A" }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                 <div style={{ color: "#fff", fontWeight: 700 }}>{n.nombre}</div>
-                <Badge color="#F59E0B">En curso</Badge>
+                <Badge color="#FF9F0A">En curso</Badge>
               </div>
-              <div style={{ color: "#8888AA", fontSize: 13 }}>Invertido: {formatCOP(n.costoTotal)}</div>
-              {n.nota && <div style={{ color: "#8888AA", fontSize: 12, marginTop: 4 }}>📝 {n.nota}</div>}
+              <div style={{ color: "#98989F", fontSize: 13 }}>Invertido: {formatCOP(n.costoTotal)}</div>
+              {n.nota && <div style={{ color: "#98989F", fontSize: 12, marginTop: 4 }}>📝 {n.nota}</div>}
               <Btn onClick={() => { setForm({ cuentaId: data.cuentas[0]?.id }); setModal("vender-" + n.id); }} style={{ width: "100%", marginTop: 10 }}>Registrar venta</Btn>
               <Modal open={modal === "vender-" + n.id} onClose={() => setModal(null)} title={`Vender ${n.nombre}`}>
-                <div style={{ color: "#8888AA", fontSize: 13, marginBottom: 12 }}>Costo total: {formatCOP(n.costoTotal)}</div>
+                <div style={{ color: "#98989F", fontSize: 13, marginBottom: 12 }}>Costo total: {formatCOP(n.costoTotal)}</div>
                 <InputMonto label="Precio de venta (COP)" value={form.precio || ""} onChange={v => setForm(f => ({ ...f, precio: v }))} />
                 {form.precio && (
-                  <div style={{ color: parseFloat(form.precio) > n.costoTotal ? "#10B981" : "#EF4444", fontSize: 14, marginBottom: 12, fontWeight: 600 }}>
+                  <div style={{ color: parseFloat(form.precio) > n.costoTotal ? "#30D158" : "#FF453A", fontSize: 14, marginBottom: 12, fontWeight: 600 }}>
                     Ganancia: {formatCOP(parseFloat(form.precio || 0) - n.costoTotal)}
                   </div>
                 )}
@@ -1088,17 +1165,17 @@ function Negocios({ data, setData }) {
 
       {vendidos.length > 0 && (
         <>
-          <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 8, fontWeight: 600, marginTop: 4 }}>VENDIDOS</div>
+          <div style={{ color: "#98989F", fontSize: 12, marginBottom: 8, fontWeight: 600, marginTop: 4 }}>VENDIDOS</div>
           {vendidos.map(n => (
             <Card key={n.id} style={{ opacity: 0.8 }}>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <div>
-                  <div style={{ color: "#BBBBDD", fontWeight: 600 }}>{n.nombre}</div>
-                  <div style={{ color: "#8888AA", fontSize: 12 }}>Compra {formatCOP(n.costoTotal)} → Venta {formatCOP(n.precioVenta)}</div>
+                  <div style={{ color: "#D1D1D6", fontWeight: 600 }}>{n.nombre}</div>
+                  <div style={{ color: "#98989F", fontSize: 12 }}>Compra {formatCOP(n.costoTotal)} → Venta {formatCOP(n.precioVenta)}</div>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <Badge color="#10B981">Vendido</Badge>
-                  <div style={{ color: "#10B981", fontWeight: 700, marginTop: 4 }}>+{formatCOP(n.ganancia)}</div>
+                  <Badge color="#30D158">Vendido</Badge>
+                  <div style={{ color: "#30D158", fontWeight: 700, marginTop: 4 }}>+{formatCOP(n.ganancia)}</div>
                 </div>
               </div>
             </Card>
@@ -1167,40 +1244,40 @@ function Prestamos({ data, setData }) {
   }
 
   const grupos = [
-    { key: "me deben", titulo: "ME DEBEN", lista: data.prestamos.filter(p => p.tipo === "me deben"), color: "#10B981", labelCerrar: "Me pagó todo", varCerrar: "success" },
-    { key: "debo", titulo: "DEBO", lista: data.prestamos.filter(p => p.tipo === "debo"), color: "#EF4444", labelCerrar: "Pagué todo", varCerrar: "danger" },
+    { key: "me deben", titulo: "ME DEBEN", lista: data.prestamos.filter(p => p.tipo === "me deben"), color: "#30D158", labelCerrar: "Me pagó todo", varCerrar: "success" },
+    { key: "debo", titulo: "DEBO", lista: data.prestamos.filter(p => p.tipo === "debo"), color: "#FF453A", labelCerrar: "Pagué todo", varCerrar: "danger" },
   ];
 
   return (
     <div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
-        <Card style={{ margin: 0, borderColor: "#10B98144" }}>
-          <div style={{ color: "#8888AA", fontSize: 11 }}>ME DEBEN</div>
-          <div style={{ color: "#10B981", fontWeight: 700, fontSize: 18 }}>{formatCOP(grupos[0].lista.reduce((a, p) => a + p.monto, 0))}</div>
+        <Card style={{ margin: 0, borderLeft: "3px solid #30D158" }}>
+          <div style={{ color: "#98989F", fontSize: 11 }}>ME DEBEN</div>
+          <div style={{ color: "#30D158", fontWeight: 700, fontSize: 18 }}>{formatCOP(grupos[0].lista.reduce((a, p) => a + p.monto, 0))}</div>
         </Card>
-        <Card style={{ margin: 0, borderColor: "#EF444444" }}>
-          <div style={{ color: "#8888AA", fontSize: 11 }}>DEBO</div>
-          <div style={{ color: "#EF4444", fontWeight: 700, fontSize: 18 }}>{formatCOP(grupos[1].lista.reduce((a, p) => a + p.monto, 0))}</div>
+        <Card style={{ margin: 0, borderLeft: "3px solid #FF453A" }}>
+          <div style={{ color: "#98989F", fontSize: 11 }}>DEBO</div>
+          <div style={{ color: "#FF453A", fontWeight: 700, fontSize: 18 }}>{formatCOP(grupos[1].lista.reduce((a, p) => a + p.monto, 0))}</div>
         </Card>
       </div>
 
       {grupos.map(grupo => grupo.lista.length > 0 && (
         <div key={grupo.key}>
-          <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 8, fontWeight: 600, marginTop: 4 }}>{grupo.titulo}</div>
+          <div style={{ color: "#98989F", fontSize: 12, marginBottom: 8, fontWeight: 600, marginTop: 4 }}>{grupo.titulo}</div>
           {grupo.lista.map(p => (
             <Card key={p.id}>
               <div style={{ marginBottom: 8 }}>
                 <div style={{ color: "#fff", fontWeight: 600 }}>{p.persona}</div>
                 <div style={{ color: grupo.color, fontWeight: 700, fontSize: 18 }}>{formatCOP(p.monto)}</div>
-                {p.nota && <div style={{ color: "#8888AA", fontSize: 12 }}>{p.nota}</div>}
-                {(p.abonos || []).length > 0 && <div style={{ color: "#8888AA", fontSize: 12, marginTop: 2 }}>{p.abonos.length} abono(s) registrado(s)</div>}
+                {p.nota && <div style={{ color: "#98989F", fontSize: 12 }}>{p.nota}</div>}
+                {(p.abonos || []).length > 0 && <div style={{ color: "#98989F", fontSize: 12, marginTop: 2 }}>{p.abonos.length} abono(s) registrado(s)</div>}
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 <Btn variant="ghost" onClick={() => { setForm({ cuentaId: data.cuentas[0]?.id }); setModal("abono-" + p.id); }} style={{ flex: 1 }}>Registrar abono</Btn>
                 <Btn variant={grupo.varCerrar} onClick={() => { setForm({ cuentaId: data.cuentas[0]?.id }); setModal("cerrar-" + p.id); }} style={{ flex: 1 }}>{grupo.labelCerrar}</Btn>
               </div>
               <Modal open={modal === "abono-" + p.id} onClose={() => setModal(null)} title={`Abono · ${p.persona}`}>
-                <div style={{ color: "#8888AA", fontSize: 13, marginBottom: 12 }}>Saldo pendiente: {formatCOP(p.monto)}</div>
+                <div style={{ color: "#98989F", fontSize: 13, marginBottom: 12 }}>Saldo pendiente: {formatCOP(p.monto)}</div>
                 <InputMonto label="Monto del abono (COP)" value={form.monto || ""} onChange={v => setForm(f => ({ ...f, monto: v }))} />
                 <SelectorCuenta cuentas={data.cuentas} value={form.cuentaId} onChange={v => setForm(f => ({ ...f, cuentaId: v }))} />
                 <div style={{ display: "flex", gap: 8 }}>
@@ -1209,7 +1286,7 @@ function Prestamos({ data, setData }) {
                 </div>
               </Modal>
               <Modal open={modal === "cerrar-" + p.id} onClose={() => setModal(null)} title={`Cerrar · ${p.persona}`}>
-                <div style={{ color: "#8888AA", fontSize: 13, marginBottom: 12 }}>Se registrará el pago completo de {formatCOP(p.monto)}.</div>
+                <div style={{ color: "#98989F", fontSize: 13, marginBottom: 12 }}>Se registrará el pago completo de {formatCOP(p.monto)}.</div>
                 <SelectorCuenta cuentas={data.cuentas} value={form.cuentaId} onChange={v => setForm(f => ({ ...f, cuentaId: v }))} />
                 <div style={{ display: "flex", gap: 8 }}>
                   <Btn onClick={() => cerrarTotal(p.id)} style={{ flex: 1 }}>Confirmar</Btn>
@@ -1257,8 +1334,8 @@ function Ajustes({ open, onClose }) {
 
   return (
     <Modal open={open} onClose={onClose} title="Ajustes">
-      <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 8, fontWeight: 700 }}>API KEY DE GOOGLE GEMINI (GRATIS)</div>
-      <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 12, lineHeight: 1.5 }}>
+      <div style={{ color: "#98989F", fontSize: 12, marginBottom: 8, fontWeight: 700 }}>API KEY DE GOOGLE GEMINI (GRATIS)</div>
+      <div style={{ color: "#98989F", fontSize: 12, marginBottom: 12, lineHeight: 1.5 }}>
         Se usa solo para el registro rápido por IA. Se guarda únicamente en este teléfono, nunca en internet.
         Conseguila gratis en aistudio.google.com/apikey
       </div>
@@ -1269,15 +1346,16 @@ function Ajustes({ open, onClose }) {
 }
 
 // ─── REGISTRO RÁPIDO CON IA (texto o dictado por voz) ────────────────────────
-function RegistroRapido({ data, setData }) {
-  const [open, setOpen] = useState(false);
+function RegistroRapido({ data, setData, open, onClose }) {
   const [texto, setTexto] = useState("");
   const [cuentaId, setCuentaId] = useState("");
   const [estado, setEstado] = useState("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [ultimo, setUltimo] = useState(null);
 
-  useEffect(() => { if (open && !cuentaId && data.cuentas[0]) setCuentaId(data.cuentas[0].id); }, [open]);
+  useEffect(() => {
+    if (open) { setEstado("idle"); setErrorMsg(""); if (!cuentaId && data.cuentas[0]) setCuentaId(data.cuentas[0].id); }
+  }, [open]);
 
   async function registrar() {
     const apiKey = localStorage.getItem(API_KEY_STORAGE);
@@ -1313,22 +1391,19 @@ function RegistroRapido({ data, setData }) {
   }
 
   return (
-    <>
-      <button onClick={() => { setOpen(true); setEstado("idle"); setErrorMsg(""); }} aria-label="Registro rápido con IA" style={{ position: "fixed", bottom: 24, right: 20, width: 58, height: 58, borderRadius: 30, background: "linear-gradient(135deg, #6C63FF, #8B5CF6)", border: "none", color: "#fff", fontSize: 24, boxShadow: "0 6px 20px #6C63FF55", cursor: "pointer", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center" }}>⚡</button>
-      <Modal open={open} onClose={() => setOpen(false)} title="Registro rápido con IA">
-        <div style={{ color: "#8888AA", fontSize: 13, marginBottom: 12, lineHeight: 1.5 }}>
-          Escribí o dictá (tocá el micrófono del teclado) algo como <em>"gasté 15 mil en almuerzo"</em> o <em>"me pagaron 50 mil"</em>.
-        </div>
-        <textarea value={texto} onChange={e => setTexto(e.target.value)} placeholder="Ej: pagué 20000 en transporte" rows={3} style={{ width: "100%", background: "#2C2C2E", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "10px 12px", color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box", resize: "none", marginBottom: 12 }} />
-        <SelectorCuenta cuentas={data.cuentas} value={cuentaId} onChange={setCuentaId} />
-        {estado === "error" && <div style={{ color: "#EF4444", fontSize: 13, marginBottom: 12 }}>{errorMsg}</div>}
-        {estado === "ok" && ultimo && <div style={{ color: "#10B981", fontSize: 13, marginBottom: 12 }}>Registrado: {ultimo.tipo === "ingreso" ? "+ " : "- "}{formatCOP(ultimo.monto)} · {ultimo.descripcion}</div>}
-        <div style={{ display: "flex", gap: 8 }}>
-          <Btn onClick={registrar} style={{ flex: 1 }}>{estado === "cargando" ? "Pensando..." : "Registrar con IA"}</Btn>
-          <Btn variant="ghost" onClick={() => setOpen(false)} style={{ flex: 1 }}>Cerrar</Btn>
-        </div>
-      </Modal>
-    </>
+    <Modal open={open} onClose={onClose} title="Registro rápido con IA">
+      <div style={{ color: "#98989F", fontSize: 13, marginBottom: 12, lineHeight: 1.5 }}>
+        Escribí o dictá (tocá el micrófono del teclado) algo como <em>"gasté 15 mil en almuerzo"</em> o <em>"me pagaron 50 mil"</em>.
+      </div>
+      <textarea value={texto} onChange={e => setTexto(e.target.value)} placeholder="Ej: pagué 20000 en transporte" rows={3} style={{ width: "100%", background: "#2C2C2E", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "10px 12px", color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box", resize: "none", marginBottom: 12 }} />
+      <SelectorCuenta cuentas={data.cuentas} value={cuentaId} onChange={setCuentaId} />
+      {estado === "error" && <div style={{ color: "#FF453A", fontSize: 13, marginBottom: 12 }}>{errorMsg}</div>}
+      {estado === "ok" && ultimo && <div style={{ color: "#30D158", fontSize: 13, marginBottom: 12 }}>Registrado: {ultimo.tipo === "ingreso" ? "+ " : "- "}{formatCOP(ultimo.monto)} · {ultimo.descripcion}</div>}
+      <div style={{ display: "flex", gap: 8 }}>
+        <Btn onClick={registrar} style={{ flex: 1 }}>{estado === "cargando" ? "Pensando..." : "Registrar con IA"}</Btn>
+        <Btn variant="ghost" onClick={onClose} style={{ flex: 1 }}>Cerrar</Btn>
+      </div>
+    </Modal>
   );
 }
 
@@ -1337,6 +1412,7 @@ function App() {
   const [tab, setTab] = useState("dashboard");
   const [data, setDataRaw] = useState(loadData);
   const [ajustesOpen, setAjustesOpen] = useState(false);
+  const [registroOpen, setRegistroOpen] = useState(false);
 
   function setData(updater) {
     setDataRaw(prev => {
@@ -1347,12 +1423,12 @@ function App() {
   }
 
   const TABS = [
-    { id: "dashboard", label: "Inicio", icon: "🏠" },
-    { id: "gastos", label: "Gastos", icon: "💸" },
-    { id: "deudas", label: "Deudas", icon: "💳" },
-    { id: "metas", label: "Metas", icon: "🎯" },
-    { id: "negocios", label: "Negocios", icon: "📦" },
-    { id: "prestamos", label: "Préstamos", icon: "🤝" },
+    { id: "dashboard", label: "Inicio", icon: "house" },
+    { id: "gastos", label: "Gastos", icon: "cart" },
+    { id: "deudas", label: "Deudas", icon: "creditcard" },
+    { id: "metas", label: "Metas", icon: "target" },
+    { id: "negocios", label: "Negocios", icon: "box" },
+    { id: "prestamos", label: "Préstamos", icon: "people" },
   ];
   const tabIds = TABS.map(t => t.id);
   const touchRef = useRef({ x: 0, y: 0, activo: false });
@@ -1379,16 +1455,18 @@ function App() {
   }
 
   return (
-    <div style={{ background: "#000000", minHeight: "100vh", color: "#fff", padding: "20px 16px 100px", maxWidth: 420, margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
-        <div>
-          <div style={{ color: "#6C63FF", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase" }}>Mis Finanzas</div>
-          <div style={{ color: "#fff", fontSize: 22, fontWeight: 800 }}>Hola 👋</div>
+    <div style={{ background: "#000000", minHeight: "100vh", color: "#fff", padding: "20px 16px 90px", maxWidth: 420, margin: "0 auto" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22, paddingTop: 6 }}>
+        <div style={{ color: "#fff", fontSize: 34, fontWeight: 800, letterSpacing: 0.2 }}>Finanzas</div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={() => setRegistroOpen(true)} aria-label="Registro rápido con IA" style={{ background: "#1C1C1E", border: "none", borderRadius: 18, width: 38, height: 38, color: "#5E5CE6", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon name="sparkles" size={19} />
+          </button>
+          <button onClick={() => setAjustesOpen(true)} aria-label="Ajustes" style={{ background: "#1C1C1E", border: "none", borderRadius: 18, width: 38, height: 38, color: "rgba(235,235,245,0.7)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon name="gear" size={19} />
+          </button>
         </div>
-        <button onClick={() => setAjustesOpen(true)} style={{ background: "#1C1C1E", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, width: 38, height: 38, color: "#BBBBDD", fontSize: 16, cursor: "pointer" }}>⚙️</button>
       </div>
-
-      <TabBar tabs={TABS} active={tab} onChange={setTab} />
 
       <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: "pan-y" }}>
         <div key={tab} className="tab-panel">
@@ -1401,7 +1479,8 @@ function App() {
         </div>
       </div>
 
-      <RegistroRapido data={data} setData={setData} />
+      <TabBar tabs={TABS} active={tab} onChange={setTab} />
+      <RegistroRapido data={data} setData={setData} open={registroOpen} onClose={() => setRegistroOpen(false)} />
       <Ajustes open={ajustesOpen} onClose={() => setAjustesOpen(false)} />
     </div>
   );
