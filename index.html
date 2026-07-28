@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
 <title>Mis Finanzas</title>
-<meta name="theme-color" content="#0D0D1A" />
+<meta name="theme-color" content="#000000" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Finanzas" />
@@ -15,18 +15,36 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
 <style>
-  * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; background: #0D0D1A; overscroll-behavior-y: none; }
-  body { -webkit-tap-highlight-color: transparent; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; background: #000000; overscroll-behavior-y: none; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
   input, select, textarea, button { font-family: inherit; }
   ::-webkit-scrollbar { display: none; }
+
+  button, .pressable {
+    transition: transform 0.12s ease, opacity 0.12s ease;
+  }
+  button:active, .pressable:active {
+    transform: scale(0.96);
+    opacity: 0.82;
+  }
+  .tab-panel {
+    animation: tabIn 0.18s ease;
+  }
+  @keyframes tabIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
 </style>
 </head>
 <body>
 <div id="root"></div>
 
 <script type="text/babel" data-presets="react">
-const { useState, useEffect } = React;
+const { useState, useEffect, useRef } = React;
 
 // ─── ALMACENAMIENTO LOCAL (todo se queda en este dispositivo) ───────────────
 const STORAGE_KEY = "finanzas-andres-v1";
@@ -35,7 +53,7 @@ const API_KEY_STORAGE = "finanzas-andres-gemini-key";
 // Datos en blanco: vos cargás tus cifras reales la primera vez que abrís la
 // app, y quedan guardadas solo en este teléfono (nunca en el código fuente).
 const initialData = {
-  saldo: 0,
+  cuentas: [{ id: "efectivo", nombre: "Efectivo", saldo: 0 }],
   ingresoMensual: 0,
   deudas: [],
   gastosFijos: [],
@@ -44,6 +62,7 @@ const initialData = {
   metas: [],
   prestamos: [],
   negocios: [],
+  movimientos: [],
 };
 
 function loadData() {
@@ -51,7 +70,13 @@ function loadData() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      return { ...initialData, ...parsed, ingresos: parsed.ingresos || [] };
+      return {
+        ...initialData,
+        ...parsed,
+        cuentas: parsed.cuentas && parsed.cuentas.length ? parsed.cuentas : initialData.cuentas,
+        ingresos: parsed.ingresos || [],
+        movimientos: parsed.movimientos || [],
+      };
     }
   } catch (e) {}
   return initialData;
@@ -59,27 +84,52 @@ function loadData() {
 
 const CATEGORIAS = ["comida", "transporte", "ocio", "ropa", "salud", "imprevisto", "otro"];
 const CATEGORIA_COLORS = {
-  comida: "#F59E0B",
-  transporte: "#3B82F6",
-  ocio: "#8B5CF6",
-  ropa: "#EC4899",
-  salud: "#10B981",
-  imprevisto: "#EF4444",
-  otro: "#6B7280",
-  familia: "#F97316",
-  servicios: "#06B6D4",
+  comida: "#F59E0B", transporte: "#3B82F6", ocio: "#8B5CF6", ropa: "#EC4899",
+  salud: "#10B981", imprevisto: "#EF4444", otro: "#6B7280",
 };
 
 function formatCOP(n) {
-  if (n === null || n === undefined) return "—";
-  return "$" + Math.round(n).toLocaleString("es-CO");
+  if (n === null || n === undefined || isNaN(n)) return "—";
+  return "$" + Number(n).toLocaleString("es-CO", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
 function diasRestantes(fecha) {
   const hoy = new Date();
   const f = new Date(fecha);
-  const diff = Math.ceil((f - hoy) / (1000 * 60 * 60 * 24));
-  return diff;
+  return Math.ceil((f - hoy) / (1000 * 60 * 60 * 24));
+}
+
+// Centraliza: mueve dinero entre una cuenta y el mundo, y deja registro en
+// el historial unificado. Todo movimiento de plata pasa por acá.
+function aplicarMovimiento(data, { tipo, monto, signo, descripcion, cuentaId, fecha }) {
+  const cuenta = data.cuentas.find(c => c.id === cuentaId) || data.cuentas[0];
+  const delta = signo === "+" ? monto : -monto;
+  const mov = {
+    id: Date.now() + "-" + Math.random().toString(36).slice(2, 7),
+    tipo, monto, signo, descripcion,
+    cuentaId: cuenta ? cuenta.id : null,
+    cuentaNombre: cuenta ? cuenta.nombre : "—",
+    fecha: fecha || new Date().toISOString().split("T")[0],
+  };
+  return {
+    ...data,
+    cuentas: data.cuentas.map(c => (cuenta && c.id === cuenta.id) ? { ...c, saldo: c.saldo + delta } : c),
+    movimientos: [mov, ...data.movimientos],
+  };
+}
+
+
+// ─── VALIDACIÓN DE SALDO ────────────────────────────────────────────────────
+function saldoSuficiente(data, cuentaId, monto) {
+  const cuenta = data.cuentas.find(c => c.id === cuentaId) || data.cuentas[0];
+  if (!cuenta) return false;
+  return cuenta.saldo >= monto;
+}
+function mensajeSaldoInsuf(data, cuentaId, monto) {
+  const cuenta = data.cuentas.find(c => c.id === cuentaId) || data.cuentas[0];
+  if (!cuenta) return "Sin cuenta seleccionada";
+  const faltante = monto - cuenta.saldo;
+  return `Saldo insuficiente en ${cuenta.nombre}. Tenés ${formatCOP(cuenta.saldo)}, faltan ${formatCOP(faltante)}.`;
 }
 
 // ─── IA: convierte texto libre en un movimiento estructurado ────────────────
@@ -106,7 +156,7 @@ Si el texto no da un monto claro, usa 0 en monto.`;
   };
 
   const resp = await fetch(
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent",
     {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
@@ -124,63 +174,93 @@ Si el texto no da un monto claro, usa 0 en monto.`;
 
   const data = await resp.json();
   const textOut =
-    data &&
-    data.candidates &&
-    data.candidates[0] &&
-    data.candidates[0].content &&
-    data.candidates[0].content.parts &&
-    data.candidates[0].content.parts[0] &&
+    data && data.candidates && data.candidates[0] && data.candidates[0].content &&
+    data.candidates[0].content.parts && data.candidates[0].content.parts[0] &&
     data.candidates[0].content.parts[0].text;
   if (!textOut) throw new Error("Respuesta vacía de la IA");
   return JSON.parse(textOut);
 }
 
-// ─── COMPONENTES BASE ────────────────────────────────────────────────────────
-function Badge({ children, color = "#6C63FF" }) {
+
+// ─── INPUT MONTO: muestra puntos de miles mientras escribís ──────────────────
+function formatInput(raw) {
+  // raw: string interno tipo "15000.5" (punto = decimal, formato JS).
+  // Devuelve para mostrar con puntos de miles y coma decimal: "15.000,5"
+  if (!raw) return "";
+  const [intPart, decPart] = String(raw).split(".");
+  const intFormatted = intPart ? Number(intPart).toLocaleString("es-CO") : "0";
+  return decPart !== undefined ? intFormatted + "," + decPart : intFormatted;
+}
+function parseInput(displayed) {
+  // Convierte "1.000.000,5" → 1000000.5 (number)
+  return parseFloat(displayed.replace(/\./g, "").replace(",", ".")) || 0;
+}
+
+function InputMonto({ label, value, onChange, placeholder }) {
+  // value: string con el valor "crudo" (sin puntos), como "1000000"
+  // onChange: recibe el valor numérico
+  const displayed = value ? formatInput(String(value)) : "";
+  function handleChange(e) {
+    let raw = e.target.value.replace(/[^0-9.,]/g, "").replace(",", ".");
+    const partes = raw.split(".");
+    if (partes.length > 2) raw = partes[0] + "." + partes.slice(1).join("");
+    const [ent, dec] = raw.split(".");
+    if (dec !== undefined && dec.length > 2) raw = ent + "." + dec.slice(0, 2);
+    onChange(raw); // guarda dígitos + opcionalmente un decimal, formato JS ("15000.5")
+  }
   return (
-    <span style={{
-      background: color + "22", color, borderRadius: 6, padding: "2px 10px",
-      fontSize: 12, fontWeight: 600, letterSpacing: 0.3,
-    }}>{children}</span>
+    <div style={{ marginBottom: 12 }}>
+      {label && <label style={{ color: "#8888AA", fontSize: 12, display: "block", marginBottom: 4 }}>{label}</label>}
+      <div style={{ position: "relative" }}>
+        <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#8888AA", fontSize: 14, pointerEvents: "none" }}>$</span>
+        <input
+          inputMode="decimal"
+          value={displayed}
+          onChange={handleChange}
+          placeholder={placeholder || "0"}
+          style={{ width: "100%", background: "#2C2C2E", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "10px 12px 10px 24px", color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }}
+        />
+      </div>
+    </div>
   );
 }
 
-function Card({ children, style = {} }) {
+// ─── COMPONENTES BASE ────────────────────────────────────────────────────────
+function Badge({ children, color = "#6C63FF" }) {
   return (
-    <div style={{
-      background: "#1A1A2E", borderRadius: 16, padding: "20px 20px", marginBottom: 14,
-      border: "1px solid #2A2A4A", ...style,
-    }}>{children}</div>
+    <span style={{ background: color + "22", color, borderRadius: 6, padding: "2px 10px", fontSize: 12, fontWeight: 600, letterSpacing: 0.3 }}>
+      {children}
+    </span>
+  );
+}
+
+function Card({ children, style = {}, onClick }) {
+  return (
+    <div onClick={onClick} className={onClick ? "pressable" : ""} style={{ background: "#1C1C1E", borderRadius: 16, padding: "20px 20px", marginBottom: 14, border: "1px solid rgba(255,255,255,0.08)", cursor: onClick ? "pointer" : "default", ...style }}>
+      {children}
+    </div>
   );
 }
 
 function ProgressBar({ value, max, color = "#6C63FF" }) {
   const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
   return (
-    <div style={{ background: "#2A2A4A", borderRadius: 8, height: 8, overflow: "hidden", margin: "8px 0" }}>
-      <div style={{
-        width: pct + "%", height: "100%",
-        background: `linear-gradient(90deg, ${color}, ${color}99)`,
-        borderRadius: 8, transition: "width 0.5s ease",
-      }} />
+    <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: 8, height: 8, overflow: "hidden", margin: "8px 0" }}>
+      <div style={{ width: pct + "%", height: "100%", background: `linear-gradient(90deg, ${color}, ${color}99)`, borderRadius: 8, transition: "width 0.5s ease" }} />
     </div>
   );
 }
 
 function TabBar({ tabs, active, onChange }) {
   return (
-    <div style={{
-      display: "flex", background: "#12122A", borderRadius: 12, padding: 4,
-      marginBottom: 18, gap: 2, overflowX: "auto",
-    }}>
+    <div style={{ display: "flex", background: "#2C2C2E", borderRadius: 12, padding: 4, marginBottom: 18, gap: 2, overflowX: "auto" }}>
       {tabs.map(t => (
         <button key={t.id} onClick={() => onChange(t.id)} style={{
           flex: 1, minWidth: 60, padding: "8px 6px", borderRadius: 9, border: "none",
           background: active === t.id ? "#6C63FF" : "transparent",
           color: active === t.id ? "#fff" : "#8888AA",
           fontWeight: active === t.id ? 700 : 500, fontSize: 11, cursor: "pointer",
-          transition: "all 0.2s", display: "flex", flexDirection: "column",
-          alignItems: "center", gap: 2,
+          transition: "all 0.2s", display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
         }}>
           <span style={{ fontSize: 16 }}>{t.icon}</span>
           <span>{t.label}</span>
@@ -193,16 +273,8 @@ function TabBar({ tabs, active, onChange }) {
 function Modal({ open, onClose, title, children }) {
   if (!open) return null;
   return (
-    <div style={{
-      position: "fixed", inset: 0, background: "#000000BB",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      zIndex: 100, padding: 16,
-    }} onClick={onClose}>
-      <div style={{
-        background: "#1A1A2E", borderRadius: 18, padding: 24,
-        width: "100%", maxWidth: 380, border: "1px solid #2A2A4A",
-        maxHeight: "85vh", overflowY: "auto",
-      }} onClick={e => e.stopPropagation()}>
+    <div data-modal="true" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 16 }} onClick={onClose}>
+      <div style={{ background: "rgba(28,28,30,0.92)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderRadius: 20, padding: 24, width: "100%", maxWidth: 380, border: "1px solid rgba(255,255,255,0.08)", maxHeight: "85vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
           <span style={{ color: "#fff", fontWeight: 700, fontSize: 16 }}>{title}</span>
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#8888AA", fontSize: 20, cursor: "pointer" }}>×</button>
@@ -217,11 +289,7 @@ function Input({ label, ...props }) {
   return (
     <div style={{ marginBottom: 12 }}>
       {label && <label style={{ color: "#8888AA", fontSize: 12, display: "block", marginBottom: 4 }}>{label}</label>}
-      <input {...props} style={{
-        width: "100%", background: "#12122A", border: "1px solid #2A2A4A",
-        borderRadius: 10, padding: "10px 12px", color: "#fff", fontSize: 14,
-        outline: "none", boxSizing: "border-box", ...props.style,
-      }} />
+      <input {...props} style={{ width: "100%", background: "#2C2C2E", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "10px 12px", color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box", ...props.style }} />
     </div>
   );
 }
@@ -230,51 +298,274 @@ function Select({ label, children, ...props }) {
   return (
     <div style={{ marginBottom: 12 }}>
       {label && <label style={{ color: "#8888AA", fontSize: 12, display: "block", marginBottom: 4 }}>{label}</label>}
-      <select {...props} style={{
-        width: "100%", background: "#12122A", border: "1px solid #2A2A4A",
-        borderRadius: 10, padding: "10px 12px", color: "#fff", fontSize: 14,
-        outline: "none", boxSizing: "border-box",
-      }}>{children}</select>
+      <select {...props} style={{ width: "100%", background: "#2C2C2E", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "10px 12px", color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }}>
+        {children}
+      </select>
     </div>
   );
 }
 
+function SelectorCuenta({ cuentas, value, onChange }) {
+  return (
+    <Select label="Cuenta" value={value || (cuentas[0] && cuentas[0].id) || ""} onChange={e => onChange(e.target.value)}>
+      {cuentas.length === 0 && <option value="">Sin cuentas — creá una primero</option>}
+      {cuentas.map(c => <option key={c.id} value={c.id}>{c.nombre} ({formatCOP(c.saldo)})</option>)}
+    </Select>
+  );
+}
+
 function Btn({ children, onClick, variant = "primary", style = {} }) {
-  const base = {
-    padding: "11px 18px", borderRadius: 10, border: "none",
-    fontWeight: 700, fontSize: 14, cursor: "pointer", transition: "opacity 0.15s",
-  };
+  const base = { padding: "11px 18px", borderRadius: 10, border: "none", fontWeight: 700, fontSize: 14, cursor: "pointer", transition: "opacity 0.15s" };
   const variants = {
     primary: { background: "#6C63FF", color: "#fff" },
     danger: { background: "#EF444422", color: "#EF4444" },
-    ghost: { background: "#2A2A4A", color: "#BBBBDD" },
+    ghost: { background: "rgba(255,255,255,0.08)", color: "#BBBBDD" },
     success: { background: "#10B98122", color: "#10B981" },
   };
   return <button onClick={onClick} style={{ ...base, ...variants[variant], ...style }}>{children}</button>;
 }
 
+
+// ─── COLOR AUTOMÁTICO POR NOMBRE DE CUENTA ───────────────────────────────────
+const CUENTA_COLORES = {
+  bancolombia: "#F59E0B",
+  nequi:       "#8B5CF6",
+  nu:          "#8B00FF",
+  nubank:      "#8B00FF",
+  daviplata:   "#EF4444",
+  davivienda:  "#EF4444",
+  bbva:        "#3B82F6",
+  itau:        "#F97316",
+  paypal:      "#1E90FF",
+  payoneer:    "#FF6600",
+  efectivo:    "#10B981",
+  cash:        "#10B981",
+  ahorro:      "#06B6D4",
+  default:     "#6C63FF",
+};
+
+function colorCuenta(nombre) {
+  if (!nombre) return CUENTA_COLORES.default;
+  const key = nombre.toLowerCase().replace(/[^a-z]/g, "");
+  for (const [k, v] of Object.entries(CUENTA_COLORES)) {
+    if (key.includes(k)) return v;
+  }
+  // Generar color determinista del nombre si no hay match
+  let hash = 0;
+  for (let i = 0; i < nombre.length; i++) hash = nombre.charCodeAt(i) + ((hash << 5) - hash);
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 70%, 60%)`;
+}
+
+// Icono/inicial de cuenta
+function IconoCuenta({ nombre, size = 22 }) {
+  const color = colorCuenta(nombre);
+  const inicial = (nombre || "?")[0].toUpperCase();
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: "50%",
+      background: color + "33", border: "1.5px solid " + color,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontSize: size * 0.48, fontWeight: 700, color, flexShrink: 0,
+    }}>{inicial}</div>
+  );
+}
+
+// ─── CUENTAS (carteras: banco, efectivo, PayPal, etc.) ──────────────────────
+function Cuentas({ open, onClose, data, setData }) {
+  const [vista, setVista] = useState("lista");
+  const [editId, setEditId] = useState(null);
+  const [form, setForm] = useState({});
+  const total = data.cuentas.reduce((a, c) => a + c.saldo, 0);
+
+  useEffect(() => { if (open) { setVista("lista"); setForm({}); } }, [open]);
+
+  function abrirEditar(c) { setForm({ nombre: c.nombre, saldo: c.saldo }); setEditId(c.id); setVista("editar"); }
+  function abrirNueva() { setForm({}); setVista("nueva"); }
+
+  function crear() {
+    const nueva = { id: Date.now(), nombre: form.nombre || "Nueva cuenta", saldo: parseFloat(form.saldo || 0) };
+    setData(d => ({ ...d, cuentas: [...d.cuentas, nueva] }));
+    setVista("lista");
+  }
+  function guardar() {
+    setData(d => ({ ...d, cuentas: d.cuentas.map(c => c.id === editId ? { ...c, nombre: form.nombre || c.nombre, saldo: parseFloat(form.saldo || 0) } : c) }));
+    setVista("lista");
+  }
+  function eliminar() {
+    setData(d => ({ ...d, cuentas: d.cuentas.filter(c => c.id !== editId) }));
+    setVista("lista");
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title={vista === "lista" ? "Tus cuentas" : vista === "nueva" ? "Nueva cuenta" : "Editar cuenta"}>
+      {vista === "lista" && (
+        <>
+          <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 14 }}>
+            Total unificado: <span style={{ color: "#fff", fontWeight: 700 }}>{formatCOP(total)}</span>
+          </div>
+          {data.cuentas.length === 0 && <div style={{ color: "#8888AA", fontSize: 13, marginBottom: 14 }}>Todavía no tenés cuentas creadas.</div>}
+          {data.cuentas.map(c => (
+            <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <IconoCuenta nombre={c.nombre} size={32} />
+                <div>
+                  <div style={{ color: "#fff", fontWeight: 600 }}>{c.nombre}</div>
+                  <div style={{ color: "#9999CC", fontSize: 14 }}>{formatCOP(c.saldo)}</div>
+                </div>
+              </div>
+              <button onClick={() => abrirEditar(c)} style={{ background: "none", border: "none", color: "#8888AA", fontSize: 13, cursor: "pointer" }}>Editar</button>
+            </div>
+          ))}
+          <Btn variant="ghost" onClick={abrirNueva} style={{ width: "100%", marginTop: 14 }}>+ Agregar cuenta</Btn>
+        </>
+      )}
+      {(vista === "nueva" || vista === "editar") && (
+        <>
+          <Input label="Nombre" value={form.nombre || ""} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} placeholder="Ej: Bancolombia, Efectivo, PayPal" />
+          <InputMonto label={vista === "nueva" ? "Saldo inicial (COP)" : "Saldo (COP)"} value={form.saldo ?? ""} onChange={v => setForm(f => ({ ...f, saldo: v }))} />
+          <div style={{ display: "flex", gap: 8, marginBottom: vista === "editar" ? 8 : 0 }}>
+            <Btn onClick={vista === "nueva" ? crear : guardar} style={{ flex: 1 }}>Guardar</Btn>
+            <Btn variant="ghost" onClick={() => setVista("lista")} style={{ flex: 1 }}>Cancelar</Btn>
+          </div>
+          {vista === "editar" && <Btn variant="danger" onClick={eliminar} style={{ width: "100%" }}>Eliminar cuenta</Btn>}
+        </>
+      )}
+    </Modal>
+  );
+}
+
+// ─── TENDENCIA MENSUAL (últimos 12 meses) ────────────────────────────────────
+function TendenciaMensual({ data }) {
+  const [tooltip, setTooltip] = useState(null);
+  const hoy = new Date();
+  const mesHoy = hoy.toISOString().slice(0, 7);
+  const meses = [];
+  for (let i = 11; i >= 0; i--) {
+    meses.push(new Date(hoy.getFullYear(), hoy.getMonth() - i, 1).toISOString().slice(0, 7));
+  }
+  const filas = meses.map(mes => ({
+    mes,
+    label: new Date(Number(mes.split("-")[0]), Number(mes.split("-")[1]) - 1, 1)
+      .toLocaleDateString("es-CO", { month: "short" }).replace(".", ""),
+    gastado: data.gastos.filter(g => g.fecha && g.fecha.startsWith(mes)).reduce((a, g) => a + g.monto, 0),
+    ingresado: (data.ingresos || []).filter(i => i.fecha && i.fecha.startsWith(mes)).reduce((a, i) => a + i.monto, 0),
+  }));
+  const max = Math.max(1, ...filas.map(f => Math.max(f.gastado, f.ingresado)));
+  const BAR_H = 72;
+
+  return (
+    <Card>
+      <div style={{ color: "#8888AA", fontSize: 11, fontWeight: 700, marginBottom: 14, letterSpacing: 0.5 }}>ÚLTIMOS 12 MESES</div>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 3 }}>
+        {filas.map(f => {
+          const gh = Math.max(3, Math.round((f.gastado / max) * BAR_H));
+          const ih = Math.max(3, Math.round((f.ingresado / max) * BAR_H));
+          const esMes = f.mes === mesHoy;
+          const activo = tooltip === f.mes;
+          return (
+            <div
+              key={f.mes}
+              onClick={() => setTooltip(activo ? null : f.mes)}
+              style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, cursor: "pointer", position: "relative" }}
+            >
+              {activo && (
+                <div style={{
+                  position: "absolute", bottom: "100%", left: "50%", transform: "translateX(-50%)",
+                  background: "rgba(255,255,255,0.08)", borderRadius: 8, padding: "6px 8px", marginBottom: 4,
+                  whiteSpace: "nowrap", zIndex: 10, border: "1px solid #3A3A5A",
+                }}>
+                  <div style={{ color: "#EF4444", fontSize: 10, fontWeight: 600 }}>−{formatCOP(f.gastado)}</div>
+                  <div style={{ color: "#10B981", fontSize: 10, fontWeight: 600 }}>+{formatCOP(f.ingresado)}</div>
+                </div>
+              )}
+              <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: BAR_H }}>
+                <div style={{ width: 6, height: gh, background: esMes ? "#EF4444" : "#EF444466", borderRadius: "3px 3px 0 0", transition: "height .3s" }} />
+                <div style={{ width: 6, height: ih, background: esMes ? "#10B981" : "#10B98166", borderRadius: "3px 3px 0 0", transition: "height .3s" }} />
+              </div>
+              <div style={{ color: esMes ? "#fff" : "#8888AA", fontSize: 9, fontWeight: esMes ? 700 : 400, textTransform: "capitalize" }}>
+                {f.label}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ display: "flex", gap: 16, marginTop: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <div style={{ width: 8, height: 8, borderRadius: 2, background: "#EF4444" }} />
+          <span style={{ color: "#8888AA", fontSize: 11 }}>Gastos</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <div style={{ width: 8, height: 8, borderRadius: 2, background: "#10B981" }} />
+          <span style={{ color: "#8888AA", fontSize: 11 }}>Ingresos</span>
+        </div>
+        <span style={{ color: "#8888AA", fontSize: 11, marginLeft: "auto", opacity: 0.7 }}>toca una barra para ver</span>
+      </div>
+    </Card>
+  );
+}
+
+// ─── HISTORIAL UNIFICADO DE MOVIMIENTOS ──────────────────────────────────────
+function Historial({ data }) {
+  const ICONOS = { gasto: "💸", ingreso: "💰", abono_deuda: "💳", abono_prestamo: "🤝", aporte_meta: "🎯", negocio_compra: "📦", negocio_venta: "📦", reverso: "↩️" };
+  const items = (data.movimientos || []).slice(0, 15);
+  return (
+    <Card>
+      <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 10 }}>HISTORIAL DE MOVIMIENTOS</div>
+      {items.length === 0 && <div style={{ color: "#8888AA", fontSize: 13 }}>Todavía no hay movimientos registrados.</div>}
+      {items.map(m => (
+        <div key={m.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <span>{ICONOS[m.tipo] || "•"}</span>
+            <div>
+              <div style={{ color: "#fff", fontSize: 13 }}>{m.descripcion}</div>
+              <div style={{ color: "#8888AA", fontSize: 11 }}>{m.cuentaNombre} · {m.fecha}</div>
+            </div>
+          </div>
+          <div style={{ color: m.signo === "+" ? "#10B981" : "#EF4444", fontWeight: 700, fontSize: 13 }}>{m.signo}{formatCOP(m.monto)}</div>
+        </div>
+      ))}
+    </Card>
+  );
+}
+
 // ─── DASHBOARD ───────────────────────────────────────────────────────────────
-function Dashboard({ data, setData }) {
+function Dashboard({ data, setData, goTo }) {
+  const [cuentasOpen, setCuentasOpen] = useState(false);
+  const totalCuentas = data.cuentas.reduce((a, c) => a + c.saldo, 0);
   const totalDeudas = data.deudas.reduce((a, d) => a + d.saldo, 0);
-  const gastosFijosTotal = data.gastosFijos.reduce((a, g) => a + g.monto, 0);
-  const proximoPago = data.deudas
-    .filter(d => d.saldo > 0)
-    .sort((a, b) => new Date(a.fechaPago) - new Date(b.fechaPago))[0];
+  const mesActual = new Date().toISOString().slice(0, 7);
+  const gastosMes = data.gastos.filter(g => g.fecha && g.fecha.startsWith(mesActual)).reduce((a, g) => a + g.monto, 0);
+  const ingresosMes = (data.ingresos || []).filter(i => i.fecha && i.fecha.startsWith(mesActual)).reduce((a, i) => a + i.monto, 0);
+  const todosPendientes = data.gastosFijos.filter(g => !data.gastos.some(x => x.fijoId === g.id && x.fecha && x.fecha.startsWith(mesActual)));
+  const proximoPago = data.deudas.filter(d => d.saldo > 0).sort((a, b) => new Date(a.fechaPago) - new Date(b.fechaPago))[0];
 
   return (
     <div>
-      <Card style={{ background: "linear-gradient(135deg, #1A1A2E, #2A1A4E)", borderColor: "#6C63FF44" }}>
-        <div style={{ color: "#9999CC", fontSize: 12, marginBottom: 4 }}>SALDO DISPONIBLE</div>
-        <div style={{ color: "#fff", fontSize: 34, fontWeight: 800, letterSpacing: -1 }}>
-          {formatCOP(data.saldo)}
-        </div>
-        <div style={{ color: "#8888AA", fontSize: 12, marginTop: 6 }}>
-          Ingreso mensual: {formatCOP(data.ingresoMensual)}
+      <Card onClick={() => setCuentasOpen(true)} style={{ background: "linear-gradient(135deg, #1C1C1E, #2A1A4E)", borderColor: "#6C63FF44", cursor: "pointer" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ color: "#9999CC", fontSize: 11, marginBottom: 2, letterSpacing: 1 }}>SALDO TOTAL</div>
+            <div style={{ color: "#fff", fontSize: 34, fontWeight: 800, letterSpacing: -1 }}>{formatCOP(totalCuentas)}</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 14px", marginTop: 12 }}>
+              {data.cuentas.map(c => (
+                <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <IconoCuenta nombre={c.nombre} size={20} />
+                  <div>
+                    <div style={{ color: "#8888AA", fontSize: 10, lineHeight: 1 }}>{c.nombre}</div>
+                    <div style={{ color: "#DDDDEE", fontSize: 12, fontWeight: 600, lineHeight: 1.3 }}>{formatCOP(c.saldo)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ color: "#6C63FF", fontSize: 11, marginTop: 10, opacity: 0.8 }}>toca para editar cuentas ›</div>
+          </div>
         </div>
       </Card>
+      <Cuentas open={cuentasOpen} onClose={() => setCuentasOpen(false)} data={data} setData={setData} />
 
       {proximoPago && (
-        <Card style={{ borderColor: diasRestantes(proximoPago.fechaPago) <= 10 ? "#EF444444" : "#F59E0B44" }}>
+        <Card onClick={() => goTo("deudas")} style={{ borderColor: diasRestantes(proximoPago.fechaPago) <= 10 ? "#EF444444" : "#F59E0B44" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <div style={{ color: "#8888AA", fontSize: 11, marginBottom: 2 }}>⚠️ PRÓXIMO PAGO</div>
@@ -282,30 +573,45 @@ function Dashboard({ data, setData }) {
               <div style={{ color: "#9999CC", fontSize: 13 }}>{formatCOP(proximoPago.saldo)}</div>
             </div>
             <div style={{ textAlign: "right" }}>
-              <Badge color={diasRestantes(proximoPago.fechaPago) <= 10 ? "#EF4444" : "#F59E0B"}>
-                {diasRestantes(proximoPago.fechaPago)}d
-              </Badge>
-              <div style={{ color: "#8888AA", fontSize: 11, marginTop: 4 }}>
-                {new Date(proximoPago.fechaPago).toLocaleDateString("es-CO", { day: "numeric", month: "short" })}
-              </div>
+              <Badge color={diasRestantes(proximoPago.fechaPago) <= 10 ? "#EF4444" : "#F59E0B"}>{diasRestantes(proximoPago.fechaPago)}d</Badge>
+              <div style={{ color: "#8888AA", fontSize: 11, marginTop: 4 }}>{new Date(proximoPago.fechaPago).toLocaleDateString("es-CO", { day: "numeric", month: "short" })}</div>
             </div>
           </div>
         </Card>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
-        <Card style={{ margin: 0 }}>
-          <div style={{ color: "#8888AA", fontSize: 11 }}>DEUDA TOTAL</div>
-          <div style={{ color: "#EF4444", fontWeight: 700, fontSize: 18, marginTop: 4 }}>{formatCOP(totalDeudas)}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
+        <Card onClick={() => goTo("deudas")} style={{ margin: 0, padding: "12px 12px" }}>
+          <div style={{ color: "#8888AA", fontSize: 10 }}>DEUDA</div>
+          <div style={{ color: "#EF4444", fontWeight: 700, fontSize: 15, marginTop: 3 }}>{formatCOP(totalDeudas)}</div>
         </Card>
-        <Card style={{ margin: 0 }}>
-          <div style={{ color: "#8888AA", fontSize: 11 }}>GASTOS FIJOS</div>
-          <div style={{ color: "#F59E0B", fontWeight: 700, fontSize: 18, marginTop: 4 }}>{formatCOP(gastosFijosTotal)}</div>
+        <Card onClick={() => goTo("gastos")} style={{ margin: 0, padding: "12px 12px" }}>
+          <div style={{ color: "#8888AA", fontSize: 10 }}>GASTOS MES</div>
+          <div style={{ color: "#F59E0B", fontWeight: 700, fontSize: 15, marginTop: 3 }}>{formatCOP(gastosMes)}</div>
+        </Card>
+        <Card onClick={() => goTo("gastos")} style={{ margin: 0, padding: "12px 12px" }}>
+          <div style={{ color: "#8888AA", fontSize: 10 }}>INGRESOS MES</div>
+          <div style={{ color: "#10B981", fontWeight: 700, fontSize: 15, marginTop: 3 }}>{formatCOP(ingresosMes)}</div>
         </Card>
       </div>
 
+      {todosPendientes.length > 0 && (
+        <Card onClick={() => goTo("gastos")} style={{ borderColor: "#06B6D433", padding: "14px 16px" }}>
+          <div style={{ color: "#06B6D4", fontSize: 11, fontWeight: 700, marginBottom: 8, letterSpacing: 0.5 }}>📅 PENDIENTES ESTE MES</div>
+          {todosPendientes.map(g => (
+            <div key={g.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: 5 }}>
+              <span style={{ color: "#BBBBDD", fontSize: 13 }}>{g.nombre}</span>
+              <span style={{ color: "#06B6D4", fontWeight: 700, fontSize: 13 }}>{formatCOP(g.monto)}</span>
+            </div>
+          ))}
+          <div style={{ color: "#8888AA", fontSize: 11, marginTop: 6 }}>
+            Total pendiente: <span style={{ color: "#06B6D4", fontWeight: 700 }}>{formatCOP(todosPendientes.reduce((a, g) => a + g.monto, 0))}</span>
+          </div>
+        </Card>
+      )}
+
       {data.metas.map(m => (
-        <Card key={m.id}>
+        <Card key={m.id} onClick={() => goTo("metas")}>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <div style={{ color: "#fff", fontWeight: 600 }}>🎯 {m.nombre}</div>
             <div style={{ color: "#9999CC", fontSize: 13 }}>{m.objetivo > 0 ? Math.round((m.actual / m.objetivo) * 100) : 0}%</div>
@@ -318,41 +624,9 @@ function Dashboard({ data, setData }) {
         </Card>
       ))}
 
-      {data.ingresos && data.ingresos.length > 0 && (
-        <Card>
-          <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 10 }}>INGRESOS RECIENTES</div>
-          {data.ingresos.slice(0, 5).map(i => (
-            <div key={i.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0" }}>
-              <div>
-                <div style={{ color: "#fff", fontSize: 13 }}>{i.descripcion}</div>
-                <div style={{ color: "#8888AA", fontSize: 11 }}>{i.fecha}</div>
-              </div>
-              <div style={{ color: "#10B981", fontWeight: 700 }}>+{formatCOP(i.monto)}</div>
-            </div>
-          ))}
-        </Card>
-      )}
-
-      <ActualizarSaldo data={data} setData={setData} />
+      <TendenciaMensual data={data} />
+      <Historial data={data} />
     </div>
-  );
-}
-
-function ActualizarSaldo({ data, setData }) {
-  const [open, setOpen] = useState(false);
-  const [val, setVal] = useState("");
-  return (
-    <>
-      <Btn onClick={() => setOpen(true)} style={{ width: "100%" }}>+ Actualizar saldo</Btn>
-      <Modal open={open} onClose={() => setOpen(false)} title="Actualizar saldo">
-        <Input label="Saldo actual (COP)" type="number" value={val} onChange={e => setVal(e.target.value)} placeholder="Ej: 500000" />
-        <Btn onClick={() => {
-          if (!val) return;
-          setData(d => ({ ...d, saldo: parseFloat(val) }));
-          setOpen(false); setVal("");
-        }} style={{ width: "100%" }}>Guardar</Btn>
-      </Modal>
-    </>
   );
 }
 
@@ -364,27 +638,24 @@ function Deudas({ data, setData }) {
   function abonar(id) {
     const monto = parseFloat(form.monto || 0);
     if (!monto) return;
-    setData(d => ({
-      ...d,
-      saldo: d.saldo - monto,
-      deudas: d.deudas.map(deu => deu.id === id
-        ? { ...deu, saldo: Math.max(0, deu.saldo - monto), abonos: [...deu.abonos, { monto, fecha: new Date().toISOString().split("T")[0] }] }
-        : deu
-      ),
-    }));
+    const cuentaId = form.cuentaId || (data.cuentas[0] && data.cuentas[0].id);
+    if (!saldoSuficiente(data, cuentaId, monto)) { alert(mensajeSaldoInsuf(data, cuentaId, monto)); return; }
+    const fecha = new Date().toISOString().split("T")[0];
+    setData(d => {
+      const deu = d.deudas.find(x => x.id === id);
+      const d2 = aplicarMovimiento(d, { tipo: "abono_deuda", monto, signo: "-", descripcion: "Abono a " + (deu ? deu.nombre : "deuda"), cuentaId, fecha });
+      return {
+        ...d2,
+        deudas: d.deudas.map(deu2 => deu2.id === id
+          ? { ...deu2, saldo: Math.max(0, deu2.saldo - monto), abonos: [...deu2.abonos, { monto, fecha, cuentaId }] }
+          : deu2),
+      };
+    });
     setModal(null); setForm({});
   }
 
   function agregarDeuda() {
-    const nueva = {
-      id: Date.now(),
-      nombre: form.nombre || "Nueva deuda",
-      saldo: parseFloat(form.saldo || 0),
-      fechaPago: form.fechaPago || "",
-      interesMensual: parseFloat(form.interes || 0),
-      comisiones: parseFloat(form.comisiones || 0),
-      abonos: [],
-    };
+    const nueva = { id: Date.now(), nombre: form.nombre || "Nueva deuda", saldo: parseFloat(form.saldo || 0), fechaPago: form.fechaPago || "", interesMensual: parseFloat(form.interes || 0), comisiones: parseFloat(form.comisiones || 0), abonos: [] };
     setData(d => ({ ...d, deudas: [...d.deudas, nueva] }));
     setModal(null); setForm({});
   }
@@ -398,34 +669,21 @@ function Deudas({ data, setData }) {
               <div style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>{d.nombre}</div>
               <div style={{ color: "#EF4444", fontSize: 22, fontWeight: 800, marginTop: 2 }}>{formatCOP(d.saldo)}</div>
             </div>
-            {d.fechaPago && (
-              <Badge color={diasRestantes(d.fechaPago) <= 10 ? "#EF4444" : "#F59E0B"}>
-                {diasRestantes(d.fechaPago)}d
-              </Badge>
-            )}
+            {d.fechaPago && <Badge color={diasRestantes(d.fechaPago) <= 10 ? "#EF4444" : "#F59E0B"}>{diasRestantes(d.fechaPago)}d</Badge>}
           </div>
-          {d.fechaPago && (
-            <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 8 }}>
-              Vence: {new Date(d.fechaPago).toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" })}
-            </div>
-          )}
+          {d.fechaPago && <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 8 }}>Vence: {new Date(d.fechaPago).toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" })}</div>}
           {(d.interesMensual > 0 || d.comisiones > 0) && (
             <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
               {d.interesMensual > 0 && <Badge color="#EF4444">Interés {formatCOP(d.interesMensual)}/mes</Badge>}
               {d.comisiones > 0 && <Badge color="#F59E0B">Comisiones {formatCOP(d.comisiones)}/mes</Badge>}
             </div>
           )}
-          {d.abonos.length > 0 && (
-            <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 8 }}>
-              {d.abonos.length} abono(s) registrado(s)
-            </div>
-          )}
-          <Btn onClick={() => { setModal("abonar-" + d.id); setForm({}); }} style={{ width: "100%" }}>
-            Registrar abono
-          </Btn>
+          {d.abonos.length > 0 && <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 8 }}>{d.abonos.length} abono(s) registrado(s)</div>}
+          <Btn onClick={() => { setModal("abonar-" + d.id); setForm({ cuentaId: data.cuentas[0]?.id }); }} style={{ width: "100%" }}>Registrar abono</Btn>
           <Modal open={modal === "abonar-" + d.id} onClose={() => setModal(null)} title={`Abonar a ${d.nombre}`}>
             <div style={{ color: "#8888AA", fontSize: 13, marginBottom: 12 }}>Saldo actual: {formatCOP(d.saldo)}</div>
-            <Input label="Monto del abono" type="number" value={form.monto || ""} onChange={e => setForm(f => ({ ...f, monto: e.target.value }))} placeholder="Ej: 350000" />
+            <InputMonto label="Monto del abono" value={form.monto || ""} onChange={v => setForm(f => ({ ...f, monto: v }))} />
+            <SelectorCuenta cuentas={data.cuentas} value={form.cuentaId} onChange={v => setForm(f => ({ ...f, cuentaId: v }))} />
             <div style={{ display: "flex", gap: 8 }}>
               <Btn onClick={() => abonar(d.id)} style={{ flex: 1 }}>Abonar</Btn>
               <Btn variant="ghost" onClick={() => setModal(null)} style={{ flex: 1 }}>Cancelar</Btn>
@@ -433,16 +691,13 @@ function Deudas({ data, setData }) {
           </Modal>
         </Card>
       ))}
-
-      <Btn onClick={() => { setModal("nueva"); setForm({}); }} variant="ghost" style={{ width: "100%" }}>
-        + Agregar deuda
-      </Btn>
+      <Btn onClick={() => { setModal("nueva"); setForm({}); }} variant="ghost" style={{ width: "100%" }}>+ Agregar deuda</Btn>
       <Modal open={modal === "nueva"} onClose={() => setModal(null)} title="Nueva deuda">
         <Input label="Nombre" value={form.nombre || ""} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} placeholder="Ej: Banco XYZ" />
-        <Input label="Saldo (COP)" type="number" value={form.saldo || ""} onChange={e => setForm(f => ({ ...f, saldo: e.target.value }))} />
+        <InputMonto label="Saldo (COP)" value={form.saldo || ""} onChange={v => setForm(f => ({ ...f, saldo: v }))} />
         <Input label="Fecha límite de pago" type="date" value={form.fechaPago || ""} onChange={e => setForm(f => ({ ...f, fechaPago: e.target.value }))} />
-        <Input label="Interés mensual (COP)" type="number" value={form.interes || ""} onChange={e => setForm(f => ({ ...f, interes: e.target.value }))} />
-        <Input label="Comisiones mensuales (COP)" type="number" value={form.comisiones || ""} onChange={e => setForm(f => ({ ...f, comisiones: e.target.value }))} />
+        <InputMonto label="Interés mensual (COP)" value={form.interes || ""} onChange={v => setForm(f => ({ ...f, interes: v }))} />
+        <InputMonto label="Comisiones mensuales (COP)" value={form.comisiones || ""} onChange={v => setForm(f => ({ ...f, comisiones: v }))} />
         <div style={{ display: "flex", gap: 8 }}>
           <Btn onClick={agregarDeuda} style={{ flex: 1 }}>Guardar</Btn>
           <Btn variant="ghost" onClick={() => setModal(null)} style={{ flex: 1 }}>Cancelar</Btn>
@@ -452,43 +707,116 @@ function Deudas({ data, setData }) {
   );
 }
 
-// ─── GASTOS ──────────────────────────────────────────────────────────────────
+// ─── GASTOS (incluye checklist de gastos fijos del mes) ──────────────────────
 function Gastos({ data, setData }) {
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({});
+  const [fijoModal, setFijoModal] = useState(null);
+  const [fijoForm, setFijoForm] = useState({});
   const mesActual = new Date().toISOString().slice(0, 7);
   const gastosMes = data.gastos.filter(g => g.fecha && g.fecha.startsWith(mesActual));
   const totalMes = gastosMes.reduce((a, g) => a + g.monto, 0);
 
   const porCategoria = CATEGORIAS.map(cat => ({
-    cat,
-    total: gastosMes.filter(g => g.categoria === cat).reduce((a, g) => a + g.monto, 0),
+    cat, total: gastosMes.filter(g => g.categoria === cat).reduce((a, g) => a + g.monto, 0),
   })).filter(c => c.total > 0);
 
   function agregar() {
-    const nuevo = {
-      id: Date.now(),
-      descripcion: form.descripcion || "Gasto",
-      monto: parseFloat(form.monto || 0),
-      categoria: form.categoria || "otro",
-      fecha: new Date().toISOString().split("T")[0],
-    };
-    setData(d => ({ ...d, saldo: d.saldo - nuevo.monto, gastos: [nuevo, ...d.gastos] }));
+    const cuentaId = form.cuentaId || (data.cuentas[0] && data.cuentas[0].id);
+    const monto = parseFloat(form.monto || 0);
+    if (!monto) return;
+    if (!saldoSuficiente(data, cuentaId, monto)) { alert(mensajeSaldoInsuf(data, cuentaId, monto)); return; }
+    const fecha = new Date().toISOString().split("T")[0];
+    const nuevo = { id: Date.now(), descripcion: form.descripcion || "Gasto", monto, categoria: form.categoria || "otro", fecha, cuentaId };
+    setData(d => {
+      const d2 = aplicarMovimiento(d, { tipo: "gasto", monto: nuevo.monto, signo: "-", descripcion: nuevo.descripcion, cuentaId, fecha });
+      return { ...d2, gastos: [nuevo, ...d.gastos] };
+    });
     setModal(false); setForm({});
   }
 
   function eliminar(id) {
-    const g = data.gastos.find(g => g.id === id);
+    const g = data.gastos.find(x => x.id === id);
     if (!g) return;
-    setData(d => ({ ...d, saldo: d.saldo + g.monto, gastos: d.gastos.filter(x => x.id !== id) }));
+    setData(d => {
+      const d2 = aplicarMovimiento(d, { tipo: "reverso", monto: g.monto, signo: "+", descripcion: "Reverso: " + g.descripcion, cuentaId: g.cuentaId, fecha: new Date().toISOString().split("T")[0] });
+      return { ...d2, gastos: d.gastos.filter(x => x.id !== id) };
+    });
+  }
+
+  function fijoDelMes(fijoId) {
+    return data.gastos.find(g => g.fijoId === fijoId && g.fecha.startsWith(mesActual));
+  }
+
+  function pagarFijo(fijo) {
+    const cuentaId = fijoForm.cuentaId || (data.cuentas[0] && data.cuentas[0].id);
+    const monto = parseFloat(fijoForm.monto !== undefined && fijoForm.monto !== "" ? fijoForm.monto : fijo.monto);
+    if (!monto) return;
+    if (!saldoSuficiente(data, cuentaId, monto)) { alert(mensajeSaldoInsuf(data, cuentaId, monto)); return; }
+    const fecha = new Date().toISOString().split("T")[0];
+    const nuevo = { id: Date.now(), descripcion: fijo.nombre, monto, categoria: fijo.categoria || "otro", fecha, cuentaId, fijoId: fijo.id };
+    setData(d => {
+      const d2 = aplicarMovimiento(d, { tipo: "gasto", monto, signo: "-", descripcion: fijo.nombre, cuentaId, fecha });
+      return { ...d2, gastos: [nuevo, ...d.gastos] };
+    });
+    setFijoModal(null); setFijoForm({});
+  }
+
+  function deshacerFijo(fijoId) {
+    const g = fijoDelMes(fijoId);
+    if (g) eliminar(g.id);
+  }
+
+  function guardarFijo() {
+    if (fijoModal === "nuevo") {
+      const nuevo = { id: Date.now(), nombre: fijoForm.nombre || "Nuevo gasto fijo", monto: parseFloat(fijoForm.monto || 0), categoria: fijoForm.categoria || "otro", nota: fijoForm.nota || "" };
+      setData(d => ({ ...d, gastosFijos: [...d.gastosFijos, nuevo] }));
+    } else if (fijoModal && fijoModal.startsWith("editar-")) {
+      const id = Number(fijoModal.slice(7));
+      setData(d => ({ ...d, gastosFijos: d.gastosFijos.map(g => g.id === id ? { ...g, nombre: fijoForm.nombre || g.nombre, monto: parseFloat(fijoForm.monto || 0), categoria: fijoForm.categoria || g.categoria, nota: fijoForm.nota || "" } : g) }));
+    }
+    setFijoModal(null); setFijoForm({});
+  }
+
+  function eliminarFijo(id) {
+    setData(d => ({ ...d, gastosFijos: d.gastosFijos.filter(g => g.id !== id) }));
+    setFijoModal(null);
   }
 
   return (
     <div>
-      <Card style={{ background: "linear-gradient(135deg, #1A1A2E, #2E1A1A)", borderColor: "#F59E0B44" }}>
+      <Card style={{ background: "linear-gradient(135deg, #1C1C1E, #2E1A1A)", borderColor: "#F59E0B44" }}>
         <div style={{ color: "#8888AA", fontSize: 12 }}>GASTADO ESTE MES</div>
         <div style={{ color: "#F59E0B", fontSize: 28, fontWeight: 800 }}>{formatCOP(totalMes)}</div>
         <div style={{ color: "#8888AA", fontSize: 12, marginTop: 4 }}>{gastosMes.length} movimiento(s)</div>
+      </Card>
+
+      <Card>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div style={{ color: "#8888AA", fontSize: 12 }}>GASTOS FIJOS DE ESTE MES</div>
+          <button onClick={() => { setFijoForm({}); setFijoModal("nuevo"); }} style={{ background: "none", border: "none", color: "#6C63FF", fontSize: 13, cursor: "pointer", fontWeight: 700 }}>+ Agregar</button>
+        </div>
+        {data.gastosFijos.length === 0 && <div style={{ color: "#8888AA", fontSize: 13 }}>No tenés gastos fijos configurados.</div>}
+        {data.gastosFijos.map(fijo => {
+          const cumplido = fijoDelMes(fijo.id);
+          return (
+            <div key={fijo.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <span style={{ fontSize: 18 }}>{cumplido ? "✅" : "⭕"}</span>
+                <div>
+                  <div style={{ color: "#fff", fontSize: 14, fontWeight: 600 }}>{fijo.nombre}</div>
+                  <div style={{ color: "#8888AA", fontSize: 12 }}>{formatCOP(cumplido ? cumplido.monto : fijo.monto)}{fijo.nota ? " · " + fijo.nota : ""}</div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                {cumplido
+                  ? <button onClick={() => deshacerFijo(fijo.id)} style={{ background: "none", border: "none", color: "#8888AA", fontSize: 12, cursor: "pointer" }}>Deshacer</button>
+                  : <Btn onClick={() => { setFijoForm({ monto: fijo.monto, cuentaId: data.cuentas[0]?.id }); setFijoModal("pagar-" + fijo.id); }} style={{ padding: "6px 12px", fontSize: 12 }}>Pagar</Btn>}
+                <button onClick={() => { setFijoForm({ nombre: fijo.nombre, monto: fijo.monto, categoria: fijo.categoria, nota: fijo.nota }); setFijoModal("editar-" + fijo.id); }} style={{ background: "none", border: "none", color: "#8888AA", fontSize: 14, cursor: "pointer" }}>✏️</button>
+              </div>
+            </div>
+          );
+        })}
       </Card>
 
       {porCategoria.length > 0 && (
@@ -506,20 +834,19 @@ function Gastos({ data, setData }) {
         </Card>
       )}
 
-      <Btn onClick={() => setModal(true)} style={{ width: "100%", marginBottom: 14 }}>+ Registrar gasto</Btn>
+      <Btn onClick={() => { setModal(true); setForm({ cuentaId: data.cuentas[0]?.id }); }} style={{ width: "100%", marginBottom: 14 }}>+ Registrar gasto</Btn>
 
-      {gastosMes.length === 0 && (
-        <div style={{ textAlign: "center", color: "#8888AA", padding: 30 }}>Sin gastos este mes</div>
-      )}
+      {gastosMes.length === 0 && <div style={{ textAlign: "center", color: "#8888AA", padding: 30 }}>Sin gastos este mes</div>}
 
       {gastosMes.map(g => (
         <Card key={g.id} style={{ padding: "14px 16px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <div style={{ color: "#fff", fontWeight: 600, fontSize: 14 }}>{g.descripcion}</div>
-              <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+              <div style={{ display: "flex", gap: 6, marginTop: 4, alignItems: "center", flexWrap: "wrap" }}>
                 <Badge color={CATEGORIA_COLORS[g.categoria] || "#6C63FF"}>{g.categoria}</Badge>
-                <span style={{ color: "#8888AA", fontSize: 12 }}>{g.fecha}</span>
+                {g.fijoId && <Badge color="#6C63FF">🔁 Fijo</Badge>}
+                <span style={{ color: "#8888AA", fontSize: 12 }}>{(data.cuentas.find(c => c.id === g.cuentaId) || {}).nombre || "—"} · {g.fecha}</span>
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -532,13 +859,52 @@ function Gastos({ data, setData }) {
 
       <Modal open={modal} onClose={() => setModal(false)} title="Nuevo gasto">
         <Input label="Descripción" value={form.descripcion || ""} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))} placeholder="Ej: Almuerzo" />
-        <Input label="Monto (COP)" type="number" value={form.monto || ""} onChange={e => setForm(f => ({ ...f, monto: e.target.value }))} />
+        <InputMonto label="Monto (COP)" value={form.monto || ""} onChange={v => setForm(f => ({ ...f, monto: v }))} />
         <Select label="Categoría" value={form.categoria || "otro"} onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))}>
           {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
         </Select>
+        <SelectorCuenta cuentas={data.cuentas} value={form.cuentaId} onChange={v => setForm(f => ({ ...f, cuentaId: v }))} />
         <div style={{ display: "flex", gap: 8 }}>
           <Btn onClick={agregar} style={{ flex: 1 }}>Agregar</Btn>
           <Btn variant="ghost" onClick={() => setModal(false)} style={{ flex: 1 }}>Cancelar</Btn>
+        </div>
+      </Modal>
+
+      {data.gastosFijos.map(fijo => (
+        <Modal key={"pagar-" + fijo.id} open={fijoModal === "pagar-" + fijo.id} onClose={() => setFijoModal(null)} title={"Pagar " + fijo.nombre}>
+          <InputMonto label="Monto (COP)" value={fijoForm.monto ?? ""} onChange={v => setFijoForm(f => ({ ...f, monto: v }))} />
+          <SelectorCuenta cuentas={data.cuentas} value={fijoForm.cuentaId} onChange={v => setFijoForm(f => ({ ...f, cuentaId: v }))} />
+          <div style={{ display: "flex", gap: 8 }}>
+            <Btn onClick={() => pagarFijo(fijo)} style={{ flex: 1 }}>Confirmar pago</Btn>
+            <Btn variant="ghost" onClick={() => setFijoModal(null)} style={{ flex: 1 }}>Cancelar</Btn>
+          </div>
+        </Modal>
+      ))}
+      {data.gastosFijos.map(fijo => (
+        <Modal key={"editar-" + fijo.id} open={fijoModal === "editar-" + fijo.id} onClose={() => setFijoModal(null)} title="Editar gasto fijo">
+          <Input label="Nombre" value={fijoForm.nombre || ""} onChange={e => setFijoForm(f => ({ ...f, nombre: e.target.value }))} />
+          <InputMonto label="Monto (COP)" value={fijoForm.monto ?? ""} onChange={v => setFijoForm(f => ({ ...f, monto: v }))} />
+          <Select label="Categoría" value={fijoForm.categoria || "otro"} onChange={e => setFijoForm(f => ({ ...f, categoria: e.target.value }))}>
+            {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+          </Select>
+          <Input label="Nota (opcional)" value={fijoForm.nota || ""} onChange={e => setFijoForm(f => ({ ...f, nota: e.target.value }))} placeholder="Ej: vence el día 5" />
+          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+            <Btn onClick={guardarFijo} style={{ flex: 1 }}>Guardar</Btn>
+            <Btn variant="ghost" onClick={() => setFijoModal(null)} style={{ flex: 1 }}>Cancelar</Btn>
+          </div>
+          <Btn variant="danger" onClick={() => eliminarFijo(fijo.id)} style={{ width: "100%" }}>Eliminar gasto fijo</Btn>
+        </Modal>
+      ))}
+      <Modal open={fijoModal === "nuevo"} onClose={() => setFijoModal(null)} title="Nuevo gasto fijo">
+        <Input label="Nombre" value={fijoForm.nombre || ""} onChange={e => setFijoForm(f => ({ ...f, nombre: e.target.value }))} placeholder="Ej: Arriendo" />
+        <InputMonto label="Monto (COP)" value={fijoForm.monto || ""} onChange={v => setFijoForm(f => ({ ...f, monto: v }))} />
+        <Select label="Categoría" value={fijoForm.categoria || "otro"} onChange={e => setFijoForm(f => ({ ...f, categoria: e.target.value }))}>
+          {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+        </Select>
+        <Input label="Nota (opcional)" value={fijoForm.nota || ""} onChange={e => setFijoForm(f => ({ ...f, nota: e.target.value }))} placeholder="Ej: vence el día 5" />
+        <div style={{ display: "flex", gap: 8 }}>
+          <Btn onClick={guardarFijo} style={{ flex: 1 }}>Agregar</Btn>
+          <Btn variant="ghost" onClick={() => setFijoModal(null)} style={{ flex: 1 }}>Cancelar</Btn>
         </div>
       </Modal>
     </div>
@@ -553,22 +919,20 @@ function Metas({ data, setData }) {
   function abonarMeta(id) {
     const monto = parseFloat(form.monto || 0);
     if (!monto) return;
-    setData(d => ({
-      ...d,
-      saldo: d.saldo - monto,
-      metas: d.metas.map(m => m.id === id ? { ...m, actual: Math.min(m.objetivo, m.actual + monto) } : m),
-    }));
+    const cuentaId = form.cuentaId || (data.cuentas[0] && data.cuentas[0].id);
+    if (!saldoSuficiente(data, cuentaId, monto)) { alert(mensajeSaldoInsuf(data, cuentaId, monto)); return; }
+    const fecha = new Date().toISOString().split("T")[0];
+    setData(d => {
+      const m = d.metas.find(x => x.id === id);
+      const d2 = aplicarMovimiento(d, { tipo: "aporte_meta", monto, signo: "-", descripcion: "Ahorro: " + (m ? m.nombre : "meta"), cuentaId, fecha });
+      return { ...d2, metas: d.metas.map(mm => mm.id === id ? { ...mm, actual: Math.min(mm.objetivo, mm.actual + monto) } : mm) };
+    });
     setModal(null); setForm({});
   }
 
   function agregarMeta() {
-    const nueva = {
-      id: Date.now(),
-      nombre: form.nombre || "Nueva meta",
-      objetivo: parseFloat(form.objetivo || 0),
-      actual: 0,
-      color: form.color || "#6C63FF",
-    };
+    const plazo = parseInt(form.plazoMeses || 0) || 6;
+    const nueva = { id: Date.now(), nombre: form.nombre || "Nueva meta", objetivo: parseFloat(form.objetivo || 0), actual: 0, color: form.color || "#6C63FF", plazoMeses: plazo };
     setData(d => ({ ...d, metas: [...d.metas, nueva] }));
     setModal(null); setForm({});
   }
@@ -578,7 +942,9 @@ function Metas({ data, setData }) {
       {data.metas.map(m => {
         const pct = m.objetivo > 0 ? Math.min(100, Math.round((m.actual / m.objetivo) * 100)) : 0;
         const faltante = m.objetivo - m.actual;
-        const mesesEstimados = faltante > 0 ? Math.ceil(faltante / 500000) : 0;
+        const plazo = m.plazoMeses || 6;
+        const ahorroMensual = faltante > 0 ? Math.ceil(faltante / plazo) : 0;
+        const mesesRestantes = ahorroMensual > 0 ? Math.ceil(faltante / ahorroMensual) : 0;
         return (
           <Card key={m.id}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -586,20 +952,28 @@ function Metas({ data, setData }) {
               <Badge color={m.color}>{pct}%</Badge>
             </div>
             <ProgressBar value={m.actual} max={m.objetivo} color={m.color} />
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 8 }}>
               <span style={{ color: "#10B981" }}>{formatCOP(m.actual)} ahorrado</span>
               <span style={{ color: "#8888AA" }}>Meta: {formatCOP(m.objetivo)}</span>
             </div>
             {faltante > 0 && (
-              <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 12 }}>
-                Faltan {formatCOP(faltante)} · ~{mesesEstimados} mes(es) ahorrando $500k/mes
+              <div style={{ background: "#2C2C2E", borderRadius: 8, padding: "8px 10px", marginBottom: 12 }}>
+                <div style={{ color: "#8888AA", fontSize: 12 }}>
+                  Faltan <span style={{ color: "#BBBBDD", fontWeight: 600 }}>{formatCOP(faltante)}</span>
+                </div>
+                <div style={{ color: "#8888AA", fontSize: 12, marginTop: 2 }}>
+                  Ahorrando <span style={{ color: m.color, fontWeight: 700 }}>{formatCOP(ahorroMensual)}/mes</span> lo lográs en <span style={{ color: "#BBBBDD", fontWeight: 600 }}>{mesesRestantes} mes(es)</span>
+                </div>
+                <div style={{ color: "#8888AA", fontSize: 11, marginTop: 2, opacity: 0.7 }}>Plazo definido: {plazo} meses</div>
               </div>
             )}
-            <Btn onClick={() => { setModal("abonar-" + m.id); setForm({}); }} style={{ width: "100%" }}>
-              + Agregar ahorro
-            </Btn>
+            <Btn onClick={() => { setForm({ cuentaId: data.cuentas[0]?.id }); setModal("abonar-" + m.id); }} style={{ width: "100%" }}>+ Agregar ahorro</Btn>
             <Modal open={modal === "abonar-" + m.id} onClose={() => setModal(null)} title={`Ahorrar para ${m.nombre}`}>
-              <Input label="Monto (COP)" type="number" value={form.monto || ""} onChange={e => setForm(f => ({ ...f, monto: e.target.value }))} />
+              <div style={{ background: "#2C2C2E", borderRadius: 8, padding: "8px 10px", marginBottom: 12 }}>
+                <div style={{ color: "#8888AA", fontSize: 12 }}>Cuota sugerida: <span style={{ color: m.color, fontWeight: 700 }}>{formatCOP(ahorroMensual)}/mes</span></div>
+              </div>
+              <InputMonto label="Monto (COP)" value={form.monto || ""} onChange={v => setForm(f => ({ ...f, monto: v }))} />
+              <SelectorCuenta cuentas={data.cuentas} value={form.cuentaId} onChange={v => setForm(f => ({ ...f, cuentaId: v }))} />
               <div style={{ display: "flex", gap: 8 }}>
                 <Btn onClick={() => abonarMeta(m.id)} style={{ flex: 1 }}>Guardar</Btn>
                 <Btn variant="ghost" onClick={() => setModal(null)} style={{ flex: 1 }}>Cancelar</Btn>
@@ -608,13 +982,28 @@ function Metas({ data, setData }) {
           </Card>
         );
       })}
-
-      <Btn variant="ghost" onClick={() => { setModal("nueva"); setForm({}); }} style={{ width: "100%" }}>
-        + Nueva meta
-      </Btn>
+      <Btn variant="ghost" onClick={() => { setModal("nueva"); setForm({}); }} style={{ width: "100%" }}>+ Nueva meta</Btn>
       <Modal open={modal === "nueva"} onClose={() => setModal(null)} title="Nueva meta de ahorro">
-        <Input label="Nombre" value={form.nombre || ""} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} placeholder="Ej: Fondo de emergencia" />
-        <Input label="Objetivo (COP)" type="number" value={form.objetivo || ""} onChange={e => setForm(f => ({ ...f, objetivo: e.target.value }))} />
+        <Input label="Nombre" value={form.nombre || ""} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} placeholder="Ej: Moto propia" />
+        <InputMonto label="Objetivo (COP)" value={form.objetivo || ""} onChange={v => setForm(f => ({ ...f, objetivo: v }))} />
+        <Input
+          label="¿En cuántos meses querés lograrlo? (opcional, por defecto 6)"
+          type="number"
+          inputMode="numeric"
+          value={form.plazoMeses || ""}
+          onChange={e => setForm(f => ({ ...f, plazoMeses: e.target.value }))}
+          placeholder="Ej: 8"
+          style={{ textAlign: "center" }}
+        />
+        {form.objetivo && (
+          <div style={{ background: "#2C2C2E", borderRadius: 8, padding: "8px 10px", marginBottom: 12 }}>
+            <div style={{ color: "#8888AA", fontSize: 12 }}>
+              Tendrías que ahorrar <span style={{ color: "#6C63FF", fontWeight: 700 }}>
+                {formatCOP(Math.ceil(parseFloat(form.objetivo || 0) / (parseInt(form.plazoMeses || 0) || 6)))}
+              </span> por mes
+            </div>
+          </div>
+        )}
         <div style={{ display: "flex", gap: 8 }}>
           <Btn onClick={agregarMeta} style={{ flex: 1 }}>Crear</Btn>
           <Btn variant="ghost" onClick={() => setModal(null)} style={{ flex: 1 }}>Cancelar</Btn>
@@ -632,28 +1021,25 @@ function Negocios({ data, setData }) {
   function cerrarNegocio(id) {
     const precio = parseFloat(form.precio || 0);
     if (!precio) return;
-    setData(d => ({
-      ...d,
-      saldo: d.saldo + precio,
-      negocios: d.negocios.map(n => n.id === id
-        ? { ...n, precioVenta: precio, ganancia: precio - n.costoTotal, estado: "vendido" }
-        : n
-      ),
-    }));
+    const cuentaId = form.cuentaId || (data.cuentas[0] && data.cuentas[0].id);
+    const fecha = new Date().toISOString().split("T")[0];
+    setData(d => {
+      const n = d.negocios.find(x => x.id === id);
+      const d2 = aplicarMovimiento(d, { tipo: "negocio_venta", monto: precio, signo: "+", descripcion: "Venta: " + (n ? n.nombre : ""), cuentaId, fecha });
+      return { ...d2, negocios: d.negocios.map(n2 => n2.id === id ? { ...n2, precioVenta: precio, ganancia: precio - n2.costoTotal, estado: "vendido" } : n2) };
+    });
     setModal(null); setForm({});
   }
 
   function agregarNegocio() {
-    const nuevo = {
-      id: Date.now(),
-      nombre: form.nombre || "Nuevo producto",
-      costoTotal: parseFloat(form.costo || 0),
-      precioVenta: null,
-      ganancia: null,
-      estado: "en curso",
-      nota: form.nota || "",
-    };
-    setData(d => ({ ...d, saldo: d.saldo - nuevo.costoTotal, negocios: [...d.negocios, nuevo] }));
+    const cuentaId = form.cuentaId || (data.cuentas[0] && data.cuentas[0].id);
+    const fecha = new Date().toISOString().split("T")[0];
+    const nuevo = { id: Date.now(), nombre: form.nombre || "Nuevo producto", costoTotal: parseFloat(form.costo || 0), precioVenta: null, ganancia: null, estado: "en curso", nota: form.nota || "" };
+    if (nuevo.costoTotal > 0 && !saldoSuficiente(data, cuentaId, nuevo.costoTotal)) { alert(mensajeSaldoInsuf(data, cuentaId, nuevo.costoTotal)); return; }
+    setData(d => {
+      const d2 = aplicarMovimiento(d, { tipo: "negocio_compra", monto: nuevo.costoTotal, signo: "-", descripcion: "Compra: " + nuevo.nombre, cuentaId, fecha });
+      return { ...d2, negocios: [...d.negocios, nuevo] };
+    });
     setModal(null); setForm({});
   }
 
@@ -680,17 +1066,16 @@ function Negocios({ data, setData }) {
               </div>
               <div style={{ color: "#8888AA", fontSize: 13 }}>Invertido: {formatCOP(n.costoTotal)}</div>
               {n.nota && <div style={{ color: "#8888AA", fontSize: 12, marginTop: 4 }}>📝 {n.nota}</div>}
-              <Btn onClick={() => { setModal("vender-" + n.id); setForm({}); }} style={{ width: "100%", marginTop: 10 }}>
-                Registrar venta
-              </Btn>
+              <Btn onClick={() => { setForm({ cuentaId: data.cuentas[0]?.id }); setModal("vender-" + n.id); }} style={{ width: "100%", marginTop: 10 }}>Registrar venta</Btn>
               <Modal open={modal === "vender-" + n.id} onClose={() => setModal(null)} title={`Vender ${n.nombre}`}>
                 <div style={{ color: "#8888AA", fontSize: 13, marginBottom: 12 }}>Costo total: {formatCOP(n.costoTotal)}</div>
-                <Input label="Precio de venta (COP)" type="number" value={form.precio || ""} onChange={e => setForm(f => ({ ...f, precio: e.target.value }))} />
+                <InputMonto label="Precio de venta (COP)" value={form.precio || ""} onChange={v => setForm(f => ({ ...f, precio: v }))} />
                 {form.precio && (
                   <div style={{ color: parseFloat(form.precio) > n.costoTotal ? "#10B981" : "#EF4444", fontSize: 14, marginBottom: 12, fontWeight: 600 }}>
                     Ganancia: {formatCOP(parseFloat(form.precio || 0) - n.costoTotal)}
                   </div>
                 )}
+                <SelectorCuenta cuentas={data.cuentas} value={form.cuentaId} onChange={v => setForm(f => ({ ...f, cuentaId: v }))} />
                 <div style={{ display: "flex", gap: 8 }}>
                   <Btn onClick={() => cerrarNegocio(n.id)} style={{ flex: 1 }}>Confirmar venta</Btn>
                   <Btn variant="ghost" onClick={() => setModal(null)} style={{ flex: 1 }}>Cancelar</Btn>
@@ -709,9 +1094,7 @@ function Negocios({ data, setData }) {
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <div>
                   <div style={{ color: "#BBBBDD", fontWeight: 600 }}>{n.nombre}</div>
-                  <div style={{ color: "#8888AA", fontSize: 12 }}>
-                    Compra {formatCOP(n.costoTotal)} → Venta {formatCOP(n.precioVenta)}
-                  </div>
+                  <div style={{ color: "#8888AA", fontSize: 12 }}>Compra {formatCOP(n.costoTotal)} → Venta {formatCOP(n.precioVenta)}</div>
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <Badge color="#10B981">Vendido</Badge>
@@ -723,13 +1106,12 @@ function Negocios({ data, setData }) {
         </>
       )}
 
-      <Btn variant="ghost" onClick={() => { setModal("nuevo"); setForm({}); }} style={{ width: "100%", marginTop: 4 }}>
-        + Nuevo negocio
-      </Btn>
+      <Btn variant="ghost" onClick={() => { setModal("nuevo"); setForm({ cuentaId: data.cuentas[0]?.id }); }} style={{ width: "100%", marginTop: 4 }}>+ Nuevo negocio</Btn>
       <Modal open={modal === "nuevo"} onClose={() => setModal(null)} title="Nuevo negocio">
         <Input label="Nombre del producto" value={form.nombre || ""} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} />
-        <Input label="Costo total invertido (COP)" type="number" value={form.costo || ""} onChange={e => setForm(f => ({ ...f, costo: e.target.value }))} />
+        <InputMonto label="Costo total invertido (COP)" value={form.costo || ""} onChange={v => setForm(f => ({ ...f, costo: v }))} />
         <Input label="Nota (opcional)" value={form.nota || ""} onChange={e => setForm(f => ({ ...f, nota: e.target.value }))} placeholder="Ej: Batería dañada" />
+        <SelectorCuenta cuentas={data.cuentas} value={form.cuentaId} onChange={v => setForm(f => ({ ...f, cuentaId: v }))} />
         <div style={{ display: "flex", gap: 8 }}>
           <Btn onClick={agregarNegocio} style={{ flex: 1 }}>Agregar</Btn>
           <Btn variant="ghost" onClick={() => setModal(null)} style={{ flex: 1 }}>Cancelar</Btn>
@@ -739,99 +1121,114 @@ function Negocios({ data, setData }) {
   );
 }
 
-// ─── PRÉSTAMOS ───────────────────────────────────────────────────────────────
+// ─── PRÉSTAMOS (con abonos parciales) ────────────────────────────────────────
 function Prestamos({ data, setData }) {
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
 
-  function marcarPagado(id) {
-    const p = data.prestamos.find(p => p.id === id);
+  function cerrarTotal(id) {
+    const p = data.prestamos.find(x => x.id === id);
     if (!p) return;
-    setData(d => ({
-      ...d,
-      saldo: p.tipo === "me deben" ? d.saldo + p.monto : d.saldo - p.monto,
-      prestamos: d.prestamos.filter(x => x.id !== id),
-    }));
+    const cuentaId = form.cuentaId || (data.cuentas[0] && data.cuentas[0].id);
+    const fecha = new Date().toISOString().split("T")[0];
+    setData(d => {
+      const d2 = aplicarMovimiento(d, { tipo: "abono_prestamo", monto: p.monto, signo: p.tipo === "me deben" ? "+" : "-", descripcion: (p.tipo === "me deben" ? "Pago recibido de " : "Pago a ") + p.persona, cuentaId, fecha });
+      return { ...d2, prestamos: d.prestamos.filter(x => x.id !== id) };
+    });
+    setModal(null); setForm({});
+  }
+
+  function abonar(id) {
+    const monto = parseFloat(form.monto || 0);
+    if (!monto) return;
+    const cuentaId = form.cuentaId || (data.cuentas[0] && data.cuentas[0].id);
+    const p0 = data.prestamos.find(x => x.id === id);
+    if (p0 && p0.tipo === "debo" && !saldoSuficiente(data, cuentaId, monto)) { alert(mensajeSaldoInsuf(data, cuentaId, monto)); return; }
+    const fecha = new Date().toISOString().split("T")[0];
+    setData(d => {
+      const p = d.prestamos.find(x => x.id === id);
+      if (!p) return d;
+      const restante = Math.max(0, p.monto - monto);
+      const abonoAplicado = p.monto - restante;
+      const d2 = aplicarMovimiento(d, { tipo: "abono_prestamo", monto: abonoAplicado, signo: p.tipo === "me deben" ? "+" : "-", descripcion: (p.tipo === "me deben" ? "Abono recibido de " : "Abono a ") + p.persona, cuentaId, fecha });
+      const actualizado = { ...p, monto: restante, abonos: [...(p.abonos || []), { monto: abonoAplicado, fecha, cuentaId }] };
+      return {
+        ...d2,
+        prestamos: restante <= 0 ? d.prestamos.filter(x => x.id !== id) : d.prestamos.map(x => x.id === id ? actualizado : x),
+      };
+    });
+    setModal(null); setForm({});
   }
 
   function agregar() {
-    const nuevo = {
-      id: Date.now(),
-      tipo: form.tipo || "me deben",
-      persona: form.persona || "",
-      monto: parseFloat(form.monto || 0),
-      nota: form.nota || "",
-    };
+    const nuevo = { id: Date.now(), tipo: form.tipo || "me deben", persona: form.persona || "", monto: parseFloat(form.monto || 0), nota: form.nota || "", abonos: [] };
     setData(d => ({ ...d, prestamos: [...d.prestamos, nuevo] }));
     setModal(null); setForm({});
   }
 
-  const meDeben = data.prestamos.filter(p => p.tipo === "me deben");
-  const debo = data.prestamos.filter(p => p.tipo === "debo");
+  const grupos = [
+    { key: "me deben", titulo: "ME DEBEN", lista: data.prestamos.filter(p => p.tipo === "me deben"), color: "#10B981", labelCerrar: "Me pagó todo", varCerrar: "success" },
+    { key: "debo", titulo: "DEBO", lista: data.prestamos.filter(p => p.tipo === "debo"), color: "#EF4444", labelCerrar: "Pagué todo", varCerrar: "danger" },
+  ];
 
   return (
     <div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
         <Card style={{ margin: 0, borderColor: "#10B98144" }}>
           <div style={{ color: "#8888AA", fontSize: 11 }}>ME DEBEN</div>
-          <div style={{ color: "#10B981", fontWeight: 700, fontSize: 18 }}>
-            {formatCOP(meDeben.reduce((a, p) => a + p.monto, 0))}
-          </div>
+          <div style={{ color: "#10B981", fontWeight: 700, fontSize: 18 }}>{formatCOP(grupos[0].lista.reduce((a, p) => a + p.monto, 0))}</div>
         </Card>
         <Card style={{ margin: 0, borderColor: "#EF444444" }}>
           <div style={{ color: "#8888AA", fontSize: 11 }}>DEBO</div>
-          <div style={{ color: "#EF4444", fontWeight: 700, fontSize: 18 }}>
-            {formatCOP(debo.reduce((a, p) => a + p.monto, 0))}
-          </div>
+          <div style={{ color: "#EF4444", fontWeight: 700, fontSize: 18 }}>{formatCOP(grupos[1].lista.reduce((a, p) => a + p.monto, 0))}</div>
         </Card>
       </div>
 
-      {meDeben.length > 0 && (
-        <>
-          <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 8, fontWeight: 600 }}>ME DEBEN</div>
-          {meDeben.map(p => (
+      {grupos.map(grupo => grupo.lista.length > 0 && (
+        <div key={grupo.key}>
+          <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 8, fontWeight: 600, marginTop: 4 }}>{grupo.titulo}</div>
+          {grupo.lista.map(p => (
             <Card key={p.id}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <div style={{ color: "#fff", fontWeight: 600 }}>{p.persona}</div>
-                  <div style={{ color: "#10B981", fontWeight: 700, fontSize: 18 }}>{formatCOP(p.monto)}</div>
-                  {p.nota && <div style={{ color: "#8888AA", fontSize: 12 }}>{p.nota}</div>}
-                </div>
-                <Btn variant="success" onClick={() => marcarPagado(p.id)}>Me pagó</Btn>
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ color: "#fff", fontWeight: 600 }}>{p.persona}</div>
+                <div style={{ color: grupo.color, fontWeight: 700, fontSize: 18 }}>{formatCOP(p.monto)}</div>
+                {p.nota && <div style={{ color: "#8888AA", fontSize: 12 }}>{p.nota}</div>}
+                {(p.abonos || []).length > 0 && <div style={{ color: "#8888AA", fontSize: 12, marginTop: 2 }}>{p.abonos.length} abono(s) registrado(s)</div>}
               </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <Btn variant="ghost" onClick={() => { setForm({ cuentaId: data.cuentas[0]?.id }); setModal("abono-" + p.id); }} style={{ flex: 1 }}>Registrar abono</Btn>
+                <Btn variant={grupo.varCerrar} onClick={() => { setForm({ cuentaId: data.cuentas[0]?.id }); setModal("cerrar-" + p.id); }} style={{ flex: 1 }}>{grupo.labelCerrar}</Btn>
+              </div>
+              <Modal open={modal === "abono-" + p.id} onClose={() => setModal(null)} title={`Abono · ${p.persona}`}>
+                <div style={{ color: "#8888AA", fontSize: 13, marginBottom: 12 }}>Saldo pendiente: {formatCOP(p.monto)}</div>
+                <InputMonto label="Monto del abono (COP)" value={form.monto || ""} onChange={v => setForm(f => ({ ...f, monto: v }))} />
+                <SelectorCuenta cuentas={data.cuentas} value={form.cuentaId} onChange={v => setForm(f => ({ ...f, cuentaId: v }))} />
+                <div style={{ display: "flex", gap: 8 }}>
+                  <Btn onClick={() => abonar(p.id)} style={{ flex: 1 }}>Registrar</Btn>
+                  <Btn variant="ghost" onClick={() => setModal(null)} style={{ flex: 1 }}>Cancelar</Btn>
+                </div>
+              </Modal>
+              <Modal open={modal === "cerrar-" + p.id} onClose={() => setModal(null)} title={`Cerrar · ${p.persona}`}>
+                <div style={{ color: "#8888AA", fontSize: 13, marginBottom: 12 }}>Se registrará el pago completo de {formatCOP(p.monto)}.</div>
+                <SelectorCuenta cuentas={data.cuentas} value={form.cuentaId} onChange={v => setForm(f => ({ ...f, cuentaId: v }))} />
+                <div style={{ display: "flex", gap: 8 }}>
+                  <Btn onClick={() => cerrarTotal(p.id)} style={{ flex: 1 }}>Confirmar</Btn>
+                  <Btn variant="ghost" onClick={() => setModal(null)} style={{ flex: 1 }}>Cancelar</Btn>
+                </div>
+              </Modal>
             </Card>
           ))}
-        </>
-      )}
+        </div>
+      ))}
 
-      {debo.length > 0 && (
-        <>
-          <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 8, fontWeight: 600, marginTop: 4 }}>DEBO</div>
-          {debo.map(p => (
-            <Card key={p.id}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <div style={{ color: "#fff", fontWeight: 600 }}>{p.persona}</div>
-                  <div style={{ color: "#EF4444", fontWeight: 700, fontSize: 18 }}>{formatCOP(p.monto)}</div>
-                  {p.nota && <div style={{ color: "#8888AA", fontSize: 12 }}>{p.nota}</div>}
-                </div>
-                <Btn variant="danger" onClick={() => marcarPagado(p.id)}>Pagué</Btn>
-              </div>
-            </Card>
-          ))}
-        </>
-      )}
-
-      <Btn variant="ghost" onClick={() => { setModal("nuevo"); setForm({ tipo: "me deben" }); }} style={{ width: "100%", marginTop: 4 }}>
-        + Registrar préstamo
-      </Btn>
+      <Btn variant="ghost" onClick={() => { setModal("nuevo"); setForm({ tipo: "me deben" }); }} style={{ width: "100%", marginTop: 4 }}>+ Registrar préstamo</Btn>
       <Modal open={modal === "nuevo"} onClose={() => setModal(null)} title="Nuevo préstamo">
         <Select label="Tipo" value={form.tipo || "me deben"} onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}>
           <option value="me deben">Me deben</option>
           <option value="debo">Debo</option>
         </Select>
         <Input label="Persona" value={form.persona || ""} onChange={e => setForm(f => ({ ...f, persona: e.target.value }))} placeholder="Ej: Hermano 1" />
-        <Input label="Monto (COP)" type="number" value={form.monto || ""} onChange={e => setForm(f => ({ ...f, monto: e.target.value }))} />
+        <InputMonto label="Monto (COP)" value={form.monto || ""} onChange={v => setForm(f => ({ ...f, monto: v }))} />
         <Input label="Nota (opcional)" value={form.nota || ""} onChange={e => setForm(f => ({ ...f, nota: e.target.value }))} />
         <div style={{ display: "flex", gap: 8 }}>
           <Btn onClick={agregar} style={{ flex: 1 }}>Guardar</Btn>
@@ -848,10 +1245,7 @@ function Ajustes({ open, onClose }) {
   const [guardado, setGuardado] = useState(false);
 
   useEffect(() => {
-    if (open) {
-      setKey(localStorage.getItem(API_KEY_STORAGE) || "");
-      setGuardado(false);
-    }
+    if (open) { setKey(localStorage.getItem(API_KEY_STORAGE) || ""); setGuardado(false); }
   }, [open]);
 
   function guardar() {
@@ -863,9 +1257,7 @@ function Ajustes({ open, onClose }) {
 
   return (
     <Modal open={open} onClose={onClose} title="Ajustes">
-      <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 8, fontWeight: 700 }}>
-        API KEY DE GOOGLE GEMINI (GRATIS)
-      </div>
+      <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 8, fontWeight: 700 }}>API KEY DE GOOGLE GEMINI (GRATIS)</div>
       <div style={{ color: "#8888AA", fontSize: 12, marginBottom: 12, lineHeight: 1.5 }}>
         Se usa solo para el registro rápido por IA. Se guarda únicamente en este teléfono, nunca en internet.
         Conseguila gratis en aistudio.google.com/apikey
@@ -877,82 +1269,60 @@ function Ajustes({ open, onClose }) {
 }
 
 // ─── REGISTRO RÁPIDO CON IA (texto o dictado por voz) ────────────────────────
-function RegistroRapido({ setData, onNeedApiKey }) {
+function RegistroRapido({ data, setData }) {
   const [open, setOpen] = useState(false);
   const [texto, setTexto] = useState("");
+  const [cuentaId, setCuentaId] = useState("");
   const [estado, setEstado] = useState("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [ultimo, setUltimo] = useState(null);
 
+  useEffect(() => { if (open && !cuentaId && data.cuentas[0]) setCuentaId(data.cuentas[0].id); }, [open]);
+
   async function registrar() {
     const apiKey = localStorage.getItem(API_KEY_STORAGE);
-    if (!apiKey) {
-      setEstado("error");
-      setErrorMsg("Primero configurá tu API key gratis de Gemini en Ajustes (⚙️, arriba a la derecha).");
-      return;
-    }
+    if (!apiKey) { setEstado("error"); setErrorMsg("Primero configurá tu API key gratis de Gemini en Ajustes (⚙️, arriba a la derecha)."); return; }
     if (!texto.trim()) return;
-    setEstado("cargando");
-    setErrorMsg("");
+    if (!cuentaId) { setEstado("error"); setErrorMsg("Primero creá una cuenta (tocá el saldo en Inicio)."); return; }
+    setEstado("cargando"); setErrorMsg("");
     try {
       const resultado = await parseConIA(texto.trim(), apiKey);
       const monto = Math.abs(parseFloat(resultado.monto) || 0);
-      if (!monto) {
-        setEstado("error");
-        setErrorMsg("No identifiqué el monto. Probá de nuevo siendo más específico, ej: 'gasté 15000 en almuerzo'.");
-        return;
-      }
+      if (!monto) { setEstado("error"); setErrorMsg("No identifiqué el monto. Probá de nuevo siendo más específico, ej: 'gasté 15000 en almuerzo'."); return; }
       const descripcion = resultado.descripcion || (resultado.tipo === "ingreso" ? "Ingreso" : "Gasto");
+      const fecha = new Date().toISOString().split("T")[0];
       if (resultado.tipo === "ingreso") {
-        const nuevo = { id: Date.now(), descripcion, monto, fecha: new Date().toISOString().split("T")[0] };
-        setData(d => ({ ...d, saldo: d.saldo + monto, ingresos: [nuevo, ...(d.ingresos || [])] }));
+        const nuevo = { id: Date.now(), descripcion, monto, fecha, cuentaId };
+        setData(d => {
+          const d2 = aplicarMovimiento(d, { tipo: "ingreso", monto, signo: "+", descripcion, cuentaId, fecha });
+          return { ...d2, ingresos: [nuevo, ...(d.ingresos || [])] };
+        });
       } else {
         const categoria = CATEGORIAS.includes(resultado.categoria) ? resultado.categoria : "otro";
-        const nuevo = { id: Date.now(), descripcion, monto, categoria, fecha: new Date().toISOString().split("T")[0] };
-        setData(d => ({ ...d, saldo: d.saldo - monto, gastos: [nuevo, ...d.gastos] }));
+        const nuevo = { id: Date.now(), descripcion, monto, categoria, fecha, cuentaId };
+        setData(d => {
+          const d2 = aplicarMovimiento(d, { tipo: "gasto", monto, signo: "-", descripcion, cuentaId, fecha });
+          return { ...d2, gastos: [nuevo, ...d.gastos] };
+        });
       }
       setUltimo({ tipo: resultado.tipo, monto, descripcion });
-      setEstado("ok");
-      setTexto("");
+      setEstado("ok"); setTexto("");
     } catch (e) {
-      setEstado("error");
-      setErrorMsg("No se pudo conectar con la IA. Revisá tu internet o tu API key en Ajustes. (" + e.message + ")");
+      setEstado("error"); setErrorMsg("No se pudo conectar con la IA. Revisá tu internet o tu API key en Ajustes. (" + e.message + ")");
     }
   }
 
   return (
     <>
-      <button
-        onClick={() => { setOpen(true); setEstado("idle"); setErrorMsg(""); }}
-        aria-label="Registro rápido con IA"
-        style={{
-          position: "fixed", bottom: 24, right: 20, width: 58, height: 58, borderRadius: 30,
-          background: "linear-gradient(135deg, #6C63FF, #8B5CF6)", border: "none", color: "#fff",
-          fontSize: 24, boxShadow: "0 6px 20px #6C63FF55", cursor: "pointer", zIndex: 50,
-          display: "flex", alignItems: "center", justifyContent: "center",
-        }}>⚡</button>
-
+      <button onClick={() => { setOpen(true); setEstado("idle"); setErrorMsg(""); }} aria-label="Registro rápido con IA" style={{ position: "fixed", bottom: 24, right: 20, width: 58, height: 58, borderRadius: 30, background: "linear-gradient(135deg, #6C63FF, #8B5CF6)", border: "none", color: "#fff", fontSize: 24, boxShadow: "0 6px 20px #6C63FF55", cursor: "pointer", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center" }}>⚡</button>
       <Modal open={open} onClose={() => setOpen(false)} title="Registro rápido con IA">
         <div style={{ color: "#8888AA", fontSize: 13, marginBottom: 12, lineHeight: 1.5 }}>
           Escribí o dictá (tocá el micrófono del teclado) algo como <em>"gasté 15 mil en almuerzo"</em> o <em>"me pagaron 50 mil"</em>.
         </div>
-        <textarea
-          value={texto}
-          onChange={e => setTexto(e.target.value)}
-          placeholder="Ej: pagué 20000 en transporte"
-          rows={3}
-          style={{
-            width: "100%", background: "#12122A", border: "1px solid #2A2A4A",
-            borderRadius: 10, padding: "10px 12px", color: "#fff", fontSize: 14,
-            outline: "none", boxSizing: "border-box", resize: "none", marginBottom: 12,
-          }}
-        />
+        <textarea value={texto} onChange={e => setTexto(e.target.value)} placeholder="Ej: pagué 20000 en transporte" rows={3} style={{ width: "100%", background: "#2C2C2E", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "10px 12px", color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box", resize: "none", marginBottom: 12 }} />
+        <SelectorCuenta cuentas={data.cuentas} value={cuentaId} onChange={setCuentaId} />
         {estado === "error" && <div style={{ color: "#EF4444", fontSize: 13, marginBottom: 12 }}>{errorMsg}</div>}
-        {estado === "ok" && ultimo && (
-          <div style={{ color: "#10B981", fontSize: 13, marginBottom: 12 }}>
-            Registrado: {ultimo.tipo === "ingreso" ? "+ " : "- "}{formatCOP(ultimo.monto)} · {ultimo.descripcion}
-          </div>
-        )}
+        {estado === "ok" && ultimo && <div style={{ color: "#10B981", fontSize: 13, marginBottom: 12 }}>Registrado: {ultimo.tipo === "ingreso" ? "+ " : "- "}{formatCOP(ultimo.monto)} · {ultimo.descripcion}</div>}
         <div style={{ display: "flex", gap: 8 }}>
           <Btn onClick={registrar} style={{ flex: 1 }}>{estado === "cargando" ? "Pensando..." : "Registrar con IA"}</Btn>
           <Btn variant="ghost" onClick={() => setOpen(false)} style={{ flex: 1 }}>Cerrar</Btn>
@@ -984,35 +1354,54 @@ function App() {
     { id: "negocios", label: "Negocios", icon: "📦" },
     { id: "prestamos", label: "Préstamos", icon: "🤝" },
   ];
+  const tabIds = TABS.map(t => t.id);
+  const touchRef = useRef({ x: 0, y: 0, activo: false });
+
+  function irA(id) { setTab(id); }
+
+  function onTouchStart(e) {
+    if (e.target.closest && e.target.closest('[data-modal="true"]')) { touchRef.current.activo = false; return; }
+    const t = e.touches[0];
+    touchRef.current = { x: t.clientX, y: t.clientY, activo: true };
+  }
+  function onTouchEnd(e) {
+    if (!touchRef.current.activo) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchRef.current.x;
+    const dy = t.clientY - touchRef.current.y;
+    touchRef.current.activo = false;
+    // Solo cuenta como swipe si es claramente horizontal y supera un umbral
+    if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+      const idx = tabIds.indexOf(tab);
+      if (dx < 0 && idx < tabIds.length - 1) setTab(tabIds[idx + 1]);
+      else if (dx > 0 && idx > 0) setTab(tabIds[idx - 1]);
+    }
+  }
 
   return (
-    <div style={{
-      background: "#0D0D1A", minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif",
-      color: "#fff", padding: "20px 16px 100px", maxWidth: 420, margin: "0 auto",
-    }}>
+    <div style={{ background: "#000000", minHeight: "100vh", color: "#fff", padding: "20px 16px 100px", maxWidth: 420, margin: "0 auto" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
         <div>
-          <div style={{ color: "#6C63FF", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase" }}>
-            Mis Finanzas
-          </div>
+          <div style={{ color: "#6C63FF", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase" }}>Mis Finanzas</div>
           <div style={{ color: "#fff", fontSize: 22, fontWeight: 800 }}>Hola 👋</div>
         </div>
-        <button onClick={() => setAjustesOpen(true)} style={{
-          background: "#1A1A2E", border: "1px solid #2A2A4A", borderRadius: 10,
-          width: 38, height: 38, color: "#BBBBDD", fontSize: 16, cursor: "pointer",
-        }}>⚙️</button>
+        <button onClick={() => setAjustesOpen(true)} style={{ background: "#1C1C1E", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, width: 38, height: 38, color: "#BBBBDD", fontSize: 16, cursor: "pointer" }}>⚙️</button>
       </div>
 
       <TabBar tabs={TABS} active={tab} onChange={setTab} />
 
-      {tab === "dashboard" && <Dashboard data={data} setData={setData} />}
-      {tab === "gastos" && <Gastos data={data} setData={setData} />}
-      {tab === "deudas" && <Deudas data={data} setData={setData} />}
-      {tab === "metas" && <Metas data={data} setData={setData} />}
-      {tab === "negocios" && <Negocios data={data} setData={setData} />}
-      {tab === "prestamos" && <Prestamos data={data} setData={setData} />}
+      <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: "pan-y" }}>
+        <div key={tab} className="tab-panel">
+          {tab === "dashboard" && <Dashboard data={data} setData={setData} goTo={irA} />}
+          {tab === "gastos" && <Gastos data={data} setData={setData} />}
+          {tab === "deudas" && <Deudas data={data} setData={setData} />}
+          {tab === "metas" && <Metas data={data} setData={setData} />}
+          {tab === "negocios" && <Negocios data={data} setData={setData} />}
+          {tab === "prestamos" && <Prestamos data={data} setData={setData} />}
+        </div>
+      </div>
 
-      <RegistroRapido setData={setData} />
+      <RegistroRapido data={data} setData={setData} />
       <Ajustes open={ajustesOpen} onClose={() => setAjustesOpen(false)} />
     </div>
   );
