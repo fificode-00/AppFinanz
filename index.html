@@ -88,6 +88,16 @@ const CATEGORIA_COLORS = {
   salud: "#30D158", imprevisto: "#FF453A", otro: "#6B7280",
 };
 
+// Material "Liquid Glass" (iOS 26): traslúcido, con saturación elevada para
+// simular refracción, y un filo claro arriba que imita el brillo del vidrio.
+const GLASS = {
+  background: "rgba(255,255,255,0.09)",
+  backdropFilter: "blur(26px) saturate(190%)",
+  WebkitBackdropFilter: "blur(26px) saturate(190%)",
+  border: "0.5px solid rgba(255,255,255,0.22)",
+  boxShadow: "0 8px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.25), inset 0 -1px 0 rgba(255,255,255,0.05)",
+};
+
 function formatCOP(n) {
   if (n === null || n === undefined || isNaN(n)) return "—";
   return "$" + Number(n).toLocaleString("es-CO", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -189,7 +199,7 @@ function formatInput(raw) {
   if (!raw) return "";
   const [intPart, decPart] = String(raw).split(".");
   const intFormatted = intPart ? Number(intPart).toLocaleString("es-CO") : "0";
-  return decPart !== undefined ? intFormatted + "," + decPart : intFormatted;
+  return (decPart !== undefined && decPart !== "") ? intFormatted + "," + decPart : intFormatted;
 }
 function parseInput(displayed) {
   // Convierte "1.000.000,5" → 1000000.5 (number)
@@ -197,17 +207,33 @@ function parseInput(displayed) {
 }
 
 function InputMonto({ label, value, onChange, placeholder }) {
-  // value: string con el valor "crudo" (sin puntos), como "1000000"
-  // onChange: recibe el valor numérico
-  const displayed = value ? formatInput(String(value)) : "";
-  function handleChange(e) {
-    let raw = e.target.value.replace(/[^0-9.,]/g, "").replace(",", ".");
-    const partes = raw.split(".");
-    if (partes.length > 2) raw = partes[0] + "." + partes.slice(1).join("");
-    const [ent, dec] = raw.split(".");
-    if (dec !== undefined && dec.length > 2) raw = ent + "." + dec.slice(0, 2);
-    onChange(raw); // guarda dígitos + opcionalmente un decimal, formato JS ("15000.5")
+  // value: string "crudo" en formato JS, ej. "15000" o "15000.5"
+  const [enfocado, setEnfocado] = useState(false);
+  const [texto, setTexto] = useState("");
+
+  function handleFocus() {
+    setEnfocado(true);
+    setTexto(value ? String(value).replace(".", ",") : "");
   }
+  function handleBlur() { setEnfocado(false); }
+
+  function handleChange(e) {
+    // Reconstruimos char por char: dígitos siempre, y como máximo UN separador decimal
+    // (evita que un punto de miles ya escrito se confunda con un decimal nuevo)
+    let vistoSeparador = false;
+    let limpio = "";
+    for (const ch of e.target.value) {
+      if (ch >= "0" && ch <= "9") limpio += ch;
+      else if ((ch === "," || ch === ".") && !vistoSeparador) { limpio += ","; vistoSeparador = true; }
+    }
+    const [ent, dec] = limpio.split(",");
+    const final = dec !== undefined ? ent + "," + dec.slice(0, 2) : ent;
+    setTexto(final);
+    onChange(final.replace(",", "."));
+  }
+
+  const mostrado = enfocado ? texto : (value ? formatInput(String(value)) : "");
+
   return (
     <div style={{ marginBottom: 12 }}>
       {label && <label style={{ color: "#98989F", fontSize: 12, display: "block", marginBottom: 4 }}>{label}</label>}
@@ -215,7 +241,9 @@ function InputMonto({ label, value, onChange, placeholder }) {
         <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#98989F", fontSize: 14, pointerEvents: "none" }}>$</span>
         <input
           inputMode="decimal"
-          value={displayed}
+          value={mostrado}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
           onChange={handleChange}
           placeholder={placeholder || "0"}
           style={{ width: "100%", background: "#2C2C2E", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "10px 12px 10px 24px", color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }}
@@ -308,18 +336,20 @@ function TabBar({ tabs, active, onChange }) {
   return (
     <div style={{
       position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 40,
-      background: "rgba(28,28,30,0.86)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
-      borderTop: "0.5px solid rgba(255,255,255,0.15)",
+      display: "flex", justifyContent: "center",
+      padding: "0 14px calc(env(safe-area-inset-bottom, 10px) + 10px)",
+      pointerEvents: "none",
     }}>
-      <div style={{ display: "flex", maxWidth: 420, margin: "0 auto", paddingBottom: "env(safe-area-inset-bottom, 6px)" }}>
+      <div style={{ ...GLASS, display: "flex", gap: 2, borderRadius: 26, padding: 5, maxWidth: 420, width: "100%", pointerEvents: "auto" }}>
         {tabs.map(t => (
-          <button key={t.id} onClick={() => onChange(t.id)} style={{
-            flex: 1, padding: "8px 2px 6px", border: "none", background: "none",
-            color: active === t.id ? "#5E5CE6" : "rgba(235,235,245,0.55)",
+          <button key={t.id} onClick={() => onChange(t.id)} className="pressable" style={{
+            flex: 1, padding: "8px 2px 7px", border: "none", borderRadius: 20, margin: "0 1px",
+            background: active === t.id ? "rgba(255,255,255,0.16)" : "transparent",
+            color: active === t.id ? "#fff" : "rgba(235,235,245,0.55)",
             cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
           }}>
-            <Icon name={t.icon} size={23} strokeWidth={active === t.id ? 2 : 1.6} />
-            <span style={{ fontSize: 10, fontWeight: active === t.id ? 600 : 400 }}>{t.label}</span>
+            <Icon name={t.icon} size={21} strokeWidth={active === t.id ? 2.1 : 1.6} />
+            <span style={{ fontSize: 9.5, fontWeight: active === t.id ? 600 : 400 }}>{t.label}</span>
           </button>
         ))}
       </div>
@@ -331,7 +361,7 @@ function Modal({ open, onClose, title, children }) {
   if (!open) return null;
   return (
     <div data-modal="true" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 16 }} onClick={onClose}>
-      <div style={{ background: "rgba(28,28,30,0.92)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderRadius: 20, padding: 24, width: "100%", maxWidth: 380, border: "1px solid rgba(255,255,255,0.08)", maxHeight: "85vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+      <div style={{ background: "rgba(30,30,32,0.86)", backdropFilter: "blur(30px) saturate(180%)", WebkitBackdropFilter: "blur(30px) saturate(180%)", borderRadius: 22, padding: 24, width: "100%", maxWidth: 380, border: "0.5px solid rgba(255,255,255,0.18)", boxShadow: "0 20px 50px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.12)", maxHeight: "85vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
           <span style={{ color: "#fff", fontWeight: 700, fontSize: 16 }}>{title}</span>
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#98989F", fontSize: 20, cursor: "pointer" }}>×</button>
@@ -1459,10 +1489,10 @@ function App() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22, paddingTop: 6 }}>
         <div style={{ color: "#fff", fontSize: 34, fontWeight: 800, letterSpacing: 0.2 }}>Finanzas</div>
         <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={() => setRegistroOpen(true)} aria-label="Registro rápido con IA" style={{ background: "#1C1C1E", border: "none", borderRadius: 18, width: 38, height: 38, color: "#5E5CE6", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Icon name="sparkles" size={19} />
+          <button onClick={() => setRegistroOpen(true)} className="pressable" aria-label="Registro rápido con IA" style={{ ...GLASS, border: "0.5px solid rgba(255,255,255,0.2)", borderRadius: 18, width: 38, height: 38, color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon name="sparkles" size={18} filled />
           </button>
-          <button onClick={() => setAjustesOpen(true)} aria-label="Ajustes" style={{ background: "#1C1C1E", border: "none", borderRadius: 18, width: 38, height: 38, color: "rgba(235,235,245,0.7)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <button onClick={() => setAjustesOpen(true)} className="pressable" aria-label="Ajustes" style={{ ...GLASS, border: "0.5px solid rgba(255,255,255,0.2)", borderRadius: 18, width: 38, height: 38, color: "rgba(235,235,245,0.85)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Icon name="gear" size={19} />
           </button>
         </div>
