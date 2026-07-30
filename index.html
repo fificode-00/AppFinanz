@@ -54,7 +54,6 @@ const API_KEY_STORAGE = "finanzas-andres-gemini-key";
 // app, y quedan guardadas solo en este teléfono (nunca en el código fuente).
 const initialData = {
   cuentas: [{ id: "efectivo", nombre: "Efectivo", saldo: 0 }],
-  ingresoMensual: 0,
   deudas: [],
   gastosFijos: [],
   gastos: [],
@@ -143,26 +142,40 @@ function mensajeSaldoInsuf(data, cuentaId, monto) {
 }
 
 // ─── IA: convierte texto libre en un movimiento estructurado ────────────────
-async function parseConIA(texto, apiKey) {
-  const prompt = `Analiza este texto en español donde una persona describe un movimiento de dinero personal (gasto o ingreso): "${texto}"
+async function parseConIA(texto, apiKey, contexto) {
+  const listaDeudas = (contexto.deudas || []).map(d => d.nombre).join(", ") || "ninguna";
+  const listaMetas = (contexto.metas || []).map(m => m.nombre).join(", ") || "ninguna";
+  const listaPrestamos = (contexto.prestamos || []).map(p => `${p.persona} (${p.tipo})`).join(", ") || "ninguno";
+  const listaNegocios = (contexto.negocios || []).filter(n => n.estado === "en curso").map(n => n.nombre).join(", ") || "ninguno";
+
+  const prompt = `Analiza este texto en español donde una persona describe un movimiento de dinero personal: "${texto}"
+
+Elegí el tipo que mejor corresponda:
+- gasto: un gasto normal (comida, transporte, etc.), sin relación a lo de abajo
+- ingreso: plata que entra (sueldo, pago, etc.), sin relación a lo de abajo
+- abono_deuda: pago a una deuda propia. Deudas registradas: ${listaDeudas}
+- aporte_meta: plata que se aparta/ahorra para una meta. Metas registradas: ${listaMetas}
+- abono_prestamo: pago relacionado a plata prestada entre personas (le pagaste a alguien o alguien te pagó a vos). Préstamos registrados: ${listaPrestamos}
+- negocio_compra: comprar algo nuevo para revender
+- negocio_venta: vender algo que ya estaba en curso para revender. En curso: ${listaNegocios}
 
 Responde con un objeto que tenga:
-- tipo: "gasto" o "ingreso"
-- monto: el valor numérico en pesos colombianos, sin puntos, comas ni símbolo de moneda (solo el número)
-- categoria: si es un gasto, la más adecuada entre: ${CATEGORIAS.join(", ")}. Si es un ingreso, usa "ingreso".
-- descripcion: una descripción corta (máximo 5 palabras)
-
-Si el texto no da un monto claro, usa 0 en monto.`;
+- tipo: uno de los valores de arriba
+- monto: el valor numérico en pesos colombianos, sin puntos, comas ni símbolo de moneda (solo el número). Si no hay un monto claro, usa 0.
+- categoria: si tipo es "gasto", la más adecuada entre: ${CATEGORIAS.join(", ")}. Si no, usa "ingreso".
+- descripcion: descripción corta (máximo 5 palabras). Para "negocio_compra" usá el nombre del producto.
+- entidad: solo si tipo es "abono_deuda", "aporte_meta" o "negocio_venta", copiá EXACTO uno de los nombres listados arriba que coincida con el texto. Solo si tipo es "abono_prestamo", copiá EXACTO el nombre de la persona (sin el paréntesis). En cualquier otro caso, o si ninguno coincide claramente, dejalo como cadena vacía.`;
 
   const schema = {
     type: "object",
     properties: {
-      tipo: { type: "string", enum: ["gasto", "ingreso"] },
+      tipo: { type: "string", enum: ["gasto", "ingreso", "abono_deuda", "aporte_meta", "abono_prestamo", "negocio_compra", "negocio_venta"] },
       monto: { type: "number" },
       categoria: { type: "string", enum: [...CATEGORIAS, "ingreso"] },
       descripcion: { type: "string" },
+      entidad: { type: "string" },
     },
-    required: ["tipo", "monto", "categoria", "descripcion"],
+    required: ["tipo", "monto", "categoria", "descripcion", "entidad"],
   };
 
   const resp = await fetch(
@@ -200,10 +213,6 @@ function formatInput(raw) {
   const [intPart, decPart] = String(raw).split(".");
   const intFormatted = intPart ? Number(intPart).toLocaleString("es-CO") : "0";
   return (decPart !== undefined && decPart !== "") ? intFormatted + "," + decPart : intFormatted;
-}
-function parseInput(displayed) {
-  // Convierte "1.000.000,5" → 1000000.5 (number)
-  return parseFloat(displayed.replace(/\./g, "").replace(",", ".")) || 0;
 }
 
 function InputMonto({ label, value, onChange, placeholder }) {
@@ -264,13 +273,9 @@ const ICON_PATHS = {
   gear: "M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4ZM19.4 12a7.4 7.4 0 0 1-.1 1.2l2 1.6-2 3.4-2.4-1a7 7 0 0 1-2 1.2l-.4 2.6H10l-.4-2.6a7 7 0 0 1-2-1.2l-2.4 1-2-3.4 2-1.6a7.4 7.4 0 0 1 0-2.4l-2-1.6 2-3.4 2.4 1a7 7 0 0 1 2-1.2L10 2h4.6l.4 2.6a7 7 0 0 1 2 1.2l2.4-1 2 3.4-2 1.6c.1.4.1.8.1 1.2Z",
   sparkles: "M11 3 12.3 8.7 18 10 12.3 11.3 11 17 9.7 11.3 4 10 9.7 8.7 11 3Zm7-1 .7 2.6L21 5.3l-2.3.7L18 8.7l-.7-2.6L15 5.3l2.3-.7L18 2ZM6 14l.6 2.4L9 17l-2.4.6L6 20l-.6-2.4L3 17l2.4-.6L6 14Z",
   chevron: "m9 6 6 6-6 6",
-  plus: "M12 5v14M5 12h14",
   check: "m5 12.5 4.5 4.5L19 7",
   circle: "M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z",
-  pencil: "m15.2 4.8 4 4L8.6 19.4l-4.8 1 1-4.8L15.2 4.8Z",
-  trash: "M4 7h16M9 7V4.8c0-.4.4-.8.9-.8h4.2c.5 0 .9.4.9.8V7m-8.5 0 .7 12a1 1 0 0 0 1 1h7.6a1 1 0 0 0 1-1l.7-12",
   wallet: "M3 7.5A2.5 2.5 0 0 1 5.5 5h11A2.5 2.5 0 0 1 19 7.5v9a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 3 16.5v-9Zm12.5 4.3h3.8a1 1 0 0 1 1 1v1.6a1 1 0 0 1-1 1h-3.8a1.9 1.9 0 0 1 0-3.8Z",
-  bank: "M12 3 3 8v1.3h18V8L12 3ZM5 10v7.3M9.3 10v7.3M14.7 10v7.3M19 10v7.3M3.5 20.5h17",
 };
 
 function Icon({ name, size = 22, color = "currentColor", strokeWidth = 1.8, filled = false }) {
@@ -300,17 +305,6 @@ function Card({ children, style = {}, onClick }) {
   );
 }
 
-// Lista agrupada estilo iOS (Ajustes/Contactos): filas dentro de un mismo
-// contenedor redondeado, separadas por líneas finas.
-function GroupedList({ children, header, footer }) {
-  return (
-    <div style={{ marginBottom: 20 }}>
-      {header && <div style={{ color: "rgba(235,235,245,0.6)", fontSize: 12, fontWeight: 500, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8, paddingLeft: 4 }}>{header}</div>}
-      <div style={{ background: "#1C1C1E", borderRadius: 14, overflow: "hidden" }}>{children}</div>
-      {footer && <div style={{ color: "rgba(235,235,245,0.5)", fontSize: 12, marginTop: 8, paddingLeft: 4 }}>{footer}</div>}
-    </div>
-  );
-}
 function Row({ children, onClick, last, style = {} }) {
   return (
     <div onClick={onClick} className={onClick ? "pressable" : ""} style={{
@@ -1237,6 +1231,7 @@ function Prestamos({ data, setData }) {
     const p = data.prestamos.find(x => x.id === id);
     if (!p) return;
     const cuentaId = form.cuentaId || (data.cuentas[0] && data.cuentas[0].id);
+    if (p.tipo === "debo" && !saldoSuficiente(data, cuentaId, p.monto)) { alert(mensajeSaldoInsuf(data, cuentaId, p.monto)); return; }
     const fecha = new Date().toISOString().split("T")[0];
     setData(d => {
       const d2 = aplicarMovimiento(d, { tipo: "abono_prestamo", monto: p.monto, signo: p.tipo === "me deben" ? "+" : "-", descripcion: (p.tipo === "me deben" ? "Pago recibido de " : "Pago a ") + p.persona, cuentaId, fecha });
@@ -1387,6 +1382,15 @@ function RegistroRapido({ data, setData, open, onClose }) {
     if (open) { setEstado("idle"); setErrorMsg(""); if (!cuentaId && data.cuentas[0]) setCuentaId(data.cuentas[0].id); }
   }, [open]);
 
+  function noEncontrado(tipoLabel, textoOriginal) {
+    setEstado("error");
+    setErrorMsg(`No encontré ${tipoLabel} que coincida con lo que escribiste ("${textoOriginal}"). Registralo primero en su pestaña, o escribí el nombre tal cual aparece ahí.`);
+  }
+  function saldoInsuf(cuentaId, monto) {
+    setEstado("error");
+    setErrorMsg(mensajeSaldoInsuf(data, cuentaId, monto));
+  }
+
   async function registrar() {
     const apiKey = localStorage.getItem(API_KEY_STORAGE);
     if (!apiKey) { setEstado("error"); setErrorMsg("Primero configurá tu API key gratis de Gemini en Ajustes (⚙️, arriba a la derecha)."); return; }
@@ -1394,27 +1398,95 @@ function RegistroRapido({ data, setData, open, onClose }) {
     if (!cuentaId) { setEstado("error"); setErrorMsg("Primero creá una cuenta (tocá el saldo en Inicio)."); return; }
     setEstado("cargando"); setErrorMsg("");
     try {
-      const resultado = await parseConIA(texto.trim(), apiKey);
+      const resultado = await parseConIA(texto.trim(), apiKey, { deudas: data.deudas, metas: data.metas, prestamos: data.prestamos, negocios: data.negocios });
       const monto = Math.abs(parseFloat(resultado.monto) || 0);
       if (!monto) { setEstado("error"); setErrorMsg("No identifiqué el monto. Probá de nuevo siendo más específico, ej: 'gasté 15000 en almuerzo'."); return; }
-      const descripcion = resultado.descripcion || (resultado.tipo === "ingreso" ? "Ingreso" : "Gasto");
       const fecha = new Date().toISOString().split("T")[0];
-      if (resultado.tipo === "ingreso") {
+      const entidadTexto = (resultado.entidad || "").trim().toLowerCase();
+      const tipo = resultado.tipo;
+
+      if (tipo === "ingreso") {
+        const descripcion = resultado.descripcion || "Ingreso";
         const nuevo = { id: Date.now(), descripcion, monto, fecha, cuentaId };
         setData(d => {
           const d2 = aplicarMovimiento(d, { tipo: "ingreso", monto, signo: "+", descripcion, cuentaId, fecha });
           return { ...d2, ingresos: [nuevo, ...(d.ingresos || [])] };
         });
-      } else {
-        const categoria = CATEGORIAS.includes(resultado.categoria) ? resultado.categoria : "otro";
-        const nuevo = { id: Date.now(), descripcion, monto, categoria, fecha, cuentaId };
-        setData(d => {
-          const d2 = aplicarMovimiento(d, { tipo: "gasto", monto, signo: "-", descripcion, cuentaId, fecha });
-          return { ...d2, gastos: [nuevo, ...d.gastos] };
-        });
+        setUltimo({ monto, descripcion, signo: "+" }); setEstado("ok"); setTexto(""); return;
       }
-      setUltimo({ tipo: resultado.tipo, monto, descripcion });
-      setEstado("ok"); setTexto("");
+
+      if (tipo === "abono_deuda") {
+        const deuda = entidadTexto && data.deudas.find(x => x.nombre.trim().toLowerCase() === entidadTexto);
+        if (!deuda) return noEncontrado("una deuda", texto.trim());
+        if (!saldoSuficiente(data, cuentaId, monto)) return saldoInsuf(cuentaId, monto);
+        const descripcion = "Abono a " + deuda.nombre;
+        setData(d => {
+          const d2 = aplicarMovimiento(d, { tipo: "abono_deuda", monto, signo: "-", descripcion, cuentaId, fecha });
+          return { ...d2, deudas: d.deudas.map(x => x.id === deuda.id ? { ...x, saldo: Math.max(0, x.saldo - monto), abonos: [...x.abonos, { monto, fecha, cuentaId }] } : x) };
+        });
+        setUltimo({ monto, descripcion, signo: "-" }); setEstado("ok"); setTexto(""); return;
+      }
+
+      if (tipo === "aporte_meta") {
+        const meta = entidadTexto && data.metas.find(x => x.nombre.trim().toLowerCase() === entidadTexto);
+        if (!meta) return noEncontrado("una meta", texto.trim());
+        if (!saldoSuficiente(data, cuentaId, monto)) return saldoInsuf(cuentaId, monto);
+        const descripcion = "Ahorro: " + meta.nombre;
+        setData(d => {
+          const d2 = aplicarMovimiento(d, { tipo: "aporte_meta", monto, signo: "-", descripcion, cuentaId, fecha });
+          return { ...d2, metas: d.metas.map(x => x.id === meta.id ? { ...x, actual: Math.min(x.objetivo, x.actual + monto) } : x) };
+        });
+        setUltimo({ monto, descripcion, signo: "-" }); setEstado("ok"); setTexto(""); return;
+      }
+
+      if (tipo === "abono_prestamo") {
+        const prestamo = entidadTexto && data.prestamos.find(x => (x.persona || "").trim().toLowerCase() === entidadTexto);
+        if (!prestamo) return noEncontrado("un préstamo", texto.trim());
+        if (prestamo.tipo === "debo" && !saldoSuficiente(data, cuentaId, monto)) return saldoInsuf(cuentaId, monto);
+        const restante = Math.max(0, prestamo.monto - monto);
+        const abonoAplicado = prestamo.monto - restante;
+        const descripcion = (prestamo.tipo === "me deben" ? "Abono recibido de " : "Abono a ") + prestamo.persona;
+        setData(d => {
+          const d2 = aplicarMovimiento(d, { tipo: "abono_prestamo", monto: abonoAplicado, signo: prestamo.tipo === "me deben" ? "+" : "-", descripcion, cuentaId, fecha });
+          const actualizado = { ...prestamo, monto: restante, abonos: [...(prestamo.abonos || []), { monto: abonoAplicado, fecha, cuentaId }] };
+          return { ...d2, prestamos: restante <= 0 ? d.prestamos.filter(x => x.id !== prestamo.id) : d.prestamos.map(x => x.id === prestamo.id ? actualizado : x) };
+        });
+        setUltimo({ monto: abonoAplicado, descripcion, signo: prestamo.tipo === "me deben" ? "+" : "-" }); setEstado("ok"); setTexto(""); return;
+      }
+
+      if (tipo === "negocio_venta") {
+        const negocio = entidadTexto && data.negocios.find(x => x.estado === "en curso" && x.nombre.trim().toLowerCase() === entidadTexto);
+        if (!negocio) return noEncontrado("un producto en curso", texto.trim());
+        const descripcion = "Venta: " + negocio.nombre;
+        setData(d => {
+          const d2 = aplicarMovimiento(d, { tipo: "negocio_venta", monto, signo: "+", descripcion, cuentaId, fecha });
+          return { ...d2, negocios: d.negocios.map(x => x.id === negocio.id ? { ...x, precioVenta: monto, ganancia: monto - x.costoTotal, estado: "vendido" } : x) };
+        });
+        setUltimo({ monto, descripcion, signo: "+" }); setEstado("ok"); setTexto(""); return;
+      }
+
+      if (tipo === "negocio_compra") {
+        if (!saldoSuficiente(data, cuentaId, monto)) return saldoInsuf(cuentaId, monto);
+        const nombre = resultado.descripcion || "Producto";
+        const nuevo = { id: Date.now(), nombre, costoTotal: monto, precioVenta: null, ganancia: null, estado: "en curso", nota: "" };
+        const descripcion = "Compra: " + nombre;
+        setData(d => {
+          const d2 = aplicarMovimiento(d, { tipo: "negocio_compra", monto, signo: "-", descripcion, cuentaId, fecha });
+          return { ...d2, negocios: [...d.negocios, nuevo] };
+        });
+        setUltimo({ monto, descripcion, signo: "-" }); setEstado("ok"); setTexto(""); return;
+      }
+
+      // tipo === "gasto"
+      if (!saldoSuficiente(data, cuentaId, monto)) return saldoInsuf(cuentaId, monto);
+      const categoria = CATEGORIAS.includes(resultado.categoria) ? resultado.categoria : "otro";
+      const descripcion = resultado.descripcion || "Gasto";
+      const nuevo = { id: Date.now(), descripcion, monto, categoria, fecha, cuentaId };
+      setData(d => {
+        const d2 = aplicarMovimiento(d, { tipo: "gasto", monto, signo: "-", descripcion, cuentaId, fecha });
+        return { ...d2, gastos: [nuevo, ...d.gastos] };
+      });
+      setUltimo({ monto, descripcion, signo: "-" }); setEstado("ok"); setTexto("");
     } catch (e) {
       setEstado("error"); setErrorMsg("No se pudo conectar con la IA. Revisá tu internet o tu API key en Ajustes. (" + e.message + ")");
     }
@@ -1423,12 +1495,12 @@ function RegistroRapido({ data, setData, open, onClose }) {
   return (
     <Modal open={open} onClose={onClose} title="Registro rápido con IA">
       <div style={{ color: "#98989F", fontSize: 13, marginBottom: 12, lineHeight: 1.5 }}>
-        Escribí o dictá (tocá el micrófono del teclado) algo como <em>"gasté 15 mil en almuerzo"</em> o <em>"me pagaron 50 mil"</em>.
+        Escribí o dictá (tocá el micrófono del teclado) algo como <em>"gasté 15 mil en almuerzo"</em>, <em>"aboné 30 mil a la deuda de Nu"</em>, <em>"ahorré 20 mil para la moto"</em> o <em>"Juan me pagó 40 mil"</em>. Usá el mismo nombre que le pusiste a la deuda, meta, persona o producto.
       </div>
       <textarea value={texto} onChange={e => setTexto(e.target.value)} placeholder="Ej: pagué 20000 en transporte" rows={3} style={{ width: "100%", background: "#2C2C2E", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "10px 12px", color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box", resize: "none", marginBottom: 12 }} />
       <SelectorCuenta cuentas={data.cuentas} value={cuentaId} onChange={setCuentaId} />
       {estado === "error" && <div style={{ color: "#FF453A", fontSize: 13, marginBottom: 12 }}>{errorMsg}</div>}
-      {estado === "ok" && ultimo && <div style={{ color: "#30D158", fontSize: 13, marginBottom: 12 }}>Registrado: {ultimo.tipo === "ingreso" ? "+ " : "- "}{formatCOP(ultimo.monto)} · {ultimo.descripcion}</div>}
+      {estado === "ok" && ultimo && <div style={{ color: "#30D158", fontSize: 13, marginBottom: 12 }}>Registrado: {ultimo.signo === "+" ? "+ " : "- "}{formatCOP(ultimo.monto)} · {ultimo.descripcion}</div>}
       <div style={{ display: "flex", gap: 8 }}>
         <Btn onClick={registrar} style={{ flex: 1 }}>{estado === "cargando" ? "Pensando..." : "Registrar con IA"}</Btn>
         <Btn variant="ghost" onClick={onClose} style={{ flex: 1 }}>Cerrar</Btn>
